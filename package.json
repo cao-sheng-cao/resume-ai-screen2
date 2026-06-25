@@ -1,7 +1,7 @@
 {
   "name": "resume-ai-screener-electron",
-  "version": "1.0.25",
-  "description": "本地简历岗位匹配评分系统：界面重构为左侧功能区/右侧操作区，支持设置区折叠、侧边栏折叠和Ctrl缩放。",
+  "version": "1.0.29",
+  "description": "本地简历岗位匹配评分系统：反vibe slop工程整理版，增加原子写入、API Key加密存储、候选人卡片与排行榜数据分离、自检脚本。",
   "main": "main.js",
   "author": "Resume AI Screener",
   "license": "MIT",
@@ -10,7 +10,9 @@
     "start": "electron .",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win nsis portable --publish never",
-    "dist:dir": "electron-builder --dir"
+    "dist:dir": "electron-builder --dir",
+    "selfcheck": "node scripts/selfcheck.js",
+    "check": "node --check main.js && node --check src/main/main.js && node --check src/main/preload.js && node --check src/renderer/renderer.js && node scripts/selfcheck.js"
   },
   "dependencies": {
     "mammoth": "^1.8.0",

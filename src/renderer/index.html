@@ -38,8 +38,9 @@
         <a href="#standard" data-short="1">岗位标准</a>
         <a href="#resume" data-short="2">简历评分</a>
         <a href="#result" data-short="3">评估结果</a>
-        <a href="#leaderboard" data-short="4">排行榜</a>
-        <a href="#backup" data-short="5">数据备份</a>
+        <a href="#candidateCards" data-short="4">候选人卡片</a>
+        <a href="#leaderboard" data-short="5">排行榜</a>
+        <a href="#backup" data-short="6">数据备份</a>
       </nav>
       <div class="zoom-box">
         <span>页面缩放</span>
@@ -59,7 +60,7 @@
     <main class="content">
       <section class="hero panel">
         <div>
-          <div class="eyebrow">本地简历筛选工具｜<span id="appVersionBadge">v1.0.25</span></div>
+          <div class="eyebrow">本地简历筛选工具｜<span id="appVersionBadge">v1.0.29</span></div>
           <div class="project-current">当前项目：<strong id="activeProjectName">默认项目</strong></div>
           <h1>简历岗位匹配评分系统</h1>
           <p>左侧是功能区与项目列表，右侧是操作区。支持设置折叠、页面缩放、双通道OCR预提取、严格度隔离排行榜与本地数据备份。</p>
@@ -68,6 +69,29 @@
           <span>评分</span>
           <strong>0-100</strong>
           <small>初筛 · 归类 · 备注</small>
+        </div>
+      </section>
+
+      <section class="workflow-status" id="workflowStatus">
+        <div>
+          <span>当前项目</span>
+          <strong id="statusProject">默认项目</strong>
+        </div>
+        <div>
+          <span>当前岗位</span>
+          <strong id="statusJob">未命名岗位</strong>
+        </div>
+        <div>
+          <span>严格度</span>
+          <strong id="statusStrictness">3度｜标准推荐</strong>
+        </div>
+        <div>
+          <span>当前模型</span>
+          <strong id="statusModel">-</strong>
+        </div>
+        <div>
+          <span>项目候选人</span>
+          <strong id="statusCandidateCount">0人</strong>
         </div>
       </section>
 
@@ -249,7 +273,15 @@
             <h2>4. 评估结果</h2>
             <p>评分用于判断匹配程度；证据置信度用于判断本次分析依据是否充分。候选人姓名与大致年龄会根据简历内容识别/推断，最终仍需人工复核。</p>
           </div>
-          <button class="ghost" id="addCurrentToRankBtn">加入排行榜</button>
+          <div class="result-actions">
+            <button class="ghost" id="copySummaryBtn">复制推荐摘要</button>
+            <button class="ghost" id="copyRiskBtn">复制风险说明</button>
+            <button class="ghost" id="copyQuestionsBtn">复制面试追问</button>
+            <button class="ghost" id="exportCandidateBtn">导出该候选人</button>
+            <button class="ghost" id="markPriorityBtn">标记优先推进</button>
+            <button class="ghost" id="markReviewBtn">标记待复核</button>
+            <button class="primary" id="addCurrentToRankBtn">加入排行榜</button>
+          </div>
         </div>
 
         <div class="score-row">
@@ -260,6 +292,37 @@
             <strong id="confidenceText">0%</strong>
             <small id="uncertaintyReason">代表分析依据可靠度，不等于匹配分</small>
           </div>
+        </div>
+
+        <div class="priority-strip" id="priorityStrip">
+          <div class="priority-card decision" id="decisionCard">
+            <span>推进判断</span>
+            <strong id="priorityDecision">待生成</strong>
+            <small id="priorityDecisionReason">根据分数、必要项、风险项综合判断</small>
+          </div>
+          <div class="priority-card risk" id="riskCard">
+            <span>强风险 / 一票否决</span>
+            <strong id="priorityRisk">0项</strong>
+            <small id="priorityRiskText">暂无强风险</small>
+          </div>
+          <div class="priority-card missing" id="missingCard">
+            <span>关键缺失</span>
+            <strong id="priorityMissing">0项</strong>
+            <small id="priorityMissingText">暂无关键缺失</small>
+          </div>
+          <div class="priority-card verify" id="verifyCard">
+            <span>必须核实</span>
+            <strong id="priorityVerify">0项</strong>
+            <small id="priorityVerifyText">暂无待核实项</small>
+          </div>
+        </div>
+
+        <div class="important-evidence" id="importantEvidenceBox">
+          <div class="important-head">
+            <strong>关键原文依据</strong>
+            <span>优先核对这些依据，避免遗漏影响推进判断的信息</span>
+          </div>
+          <ol id="importantEvidenceList"></ol>
         </div>
 
         <div class="metrics">
@@ -319,10 +382,34 @@
         </div>
       </section>
 
+      <section class="panel" id="candidateCards">
+        <div class="section-title">
+          <div>
+            <h2>5. 项目内候选人分析卡片</h2>
+            <p>一级标题是当前项目，二级卡片是该项目内的候选人。每次分析结果都会沉淀为独立卡片，便于像 ChatGPT 对话记录一样回看。</p>
+          </div>
+        </div>
+
+        <details class="candidate-cards-collapse" open>
+          <summary>
+            <span>展开 / 收起项目候选人卡片</span>
+            <small id="candidateCardHint">当前项目暂无候选人卡片</small>
+          </summary>
+          <div class="project-card-heading">
+            <div>
+              <span>一级项目</span>
+              <strong id="candidateCardsProjectName">默认项目</strong>
+            </div>
+            <small>下方每张卡片为该项目的二级候选人分析结果</small>
+          </div>
+          <div class="candidate-card-list" id="candidateCardList"></div>
+        </details>
+      </section>
+
       <section class="panel" id="leaderboard">
         <div class="section-title">
           <div>
-            <h2>5. 候选人排行榜</h2>
+            <h2>6. 候选人排行榜</h2>
             <p>按岗位、归类、时间与严格度筛选候选人。不同严格度的评分不混合比较，必须选择对应严格度后查看对应分数排行。</p>
           </div>
           <div class="actions no-margin">
@@ -420,7 +507,7 @@
       <section class="panel" id="backup">
         <div class="section-title">
           <div>
-            <h2>6. 数据备份 / 恢复</h2>
+            <h2>7. 数据备份 / 恢复</h2>
             <p>完整备份适合更新软件、换电脑或防止数据丢失；排行榜表格适合查看，不适合完整恢复。</p>
           </div>
           <div class="actions no-margin">

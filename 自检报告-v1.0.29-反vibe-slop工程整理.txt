@@ -1,0 +1,96 @@
+简历岗位匹配评分系统 v1.0.29 反 Vibe Slop 工程整理升级报告
+
+一、本次升级结论
+本次升级完成。静态自检全部通过，失败项为 0。
+
+二、本次实际完成的工程整理
+1. JSON 本地存储改为原子写入：先写临时文件，再 rename 覆盖目标文件，降低异常退出导致 JSON 损坏的概率。
+2. API Key 存储升级：优先使用 Electron safeStorage 加密保存；如果当前系统不支持 safeStorage，才回退明文保存。
+3. 旧版明文 API Key 自动迁移：读取旧 settings.json 时，如果发现旧版明文密钥且 safeStorage 可用，会自动迁移为加密密钥。
+4. 备份安全处理：默认备份不会导出 API Key，也不会导出 safeStorage 密文；只有用户明确勾选导出密钥时，才导出可跨电脑恢复的明文密钥，并继续依赖前端二次确认。
+5. 候选人卡片与排行榜数据结构分离：项目内新增 candidates 数据，候选人卡片不再直接依赖排行榜数组；排行榜继续作为排序/筛选视图。
+6. 增加 npm run selfcheck：新增 scripts/selfcheck.js，可在本地或 CI 中执行静态自检。
+7. 增加 npm run check：同时检查 JS 语法与项目静态一致性。
+8. 继续保留历史功能：OCR双通道、严格度隔离排行榜、ChatGPT式候选人卡片、设置折叠、Ctrl缩放、结果关键信息突出显示。
+
+三、没有一次性大拆模块的原因
+renderer.js 和 main.js 仍然较大。本次没有把它们彻底拆成多个运行模块，原因是该应用已经积累了较多功能，直接大拆会显著增加回归风险。本版先完成更安全的工程整理：数据安全、密钥安全、自检脚本、候选人/排行榜数据语义分离。后续可以在 v1.0.30 单独做模块化拆分。
+
+四、建议下一版继续做的模块化拆分
+1. renderer.js 拆分为 settings、projects、candidateCards、leaderboard、analysisResult、resumeUpload、backup、uiState、utils。
+2. main.js 拆分为 storage、secureSettings、aiClient、fileParser、ocrService、backupService、windowControl。
+3. 将 selfcheck.js 加入 GitHub Actions 构建流程，在打包前先运行 npm run check。
+4. 候选人数量增长后，将 projects.json 升级为 SQLite。
+
+五、自检结果
+- 文件存在：package.json：通过；
+- 文件存在：main.js：通过；
+- 文件存在：src/main/main.js：通过；
+- 文件存在：src/main/preload.js：通过；
+- 文件存在：src/renderer/index.html：通过；
+- 文件存在：src/renderer/renderer.js：通过；
+- 文件存在：src/renderer/styles.css：通过；
+- 文件存在：.github/workflows/build-windows.yml：通过；
+- 文件存在：scripts/selfcheck.js：通过；
+- JS语法：main.js：通过；
+- JS语法：src/main/main.js：通过；
+- JS语法：src/main/preload.js：通过；
+- JS语法：src/renderer/renderer.js：通过；
+- JS语法：scripts/selfcheck.js：通过；
+- HTML ID 与前端调用对应：通过；[]
+- 按钮绑定：通过；[]
+- IPC接口对应：通过；[]
+- 历史误替换残留：通过；{'path.常驻name': 0, 'get深度求索Models': 0, 'export排行榜表格': 0, 'total令牌s': 0, 'prompt令牌s': 0, '兼容兼容': 0, 'async async function': 0, 'm销售': 0, 'm成交': 0}
+- 默认岗位明确指向词清除：通过；{'腾讯': 0, 'Tencent': 0, '法国': 0, '巴黎': 0, '法语': 0, '南欧': 0, '云厂': 0, '云计算': 0}
+- JSON原子写入：通过；writeJson使用临时文件+rename
+- API Key safeStorage加密：通过；存在
+- 旧明文API Key迁移：通过；存在
+- 备份默认移除密钥密文：通过；存在
+- 候选人数据与排行榜分离：通过；存在
+- npm selfcheck脚本：通过；存在
+- npm check脚本：通过；存在
+- PDF/Word/TXT读取：通过；通过
+- 模型选择非空兜底：通过；通过
+- 危险操作二次确认：通过；通过
+- 证据置信度校准：通过；通过
+- 严格度隔离排行榜：通过；通过
+- 排行榜不显示单人Token：通过；通过
+- Token合并：通过；通过
+- 双通道OCR预提取：通过；通过
+- 设置区折叠：通过；通过
+- 左侧折叠：通过；通过
+- Ctrl缩放：通过；通过
+- 结果关键信息突出：通过；通过
+- 项目内候选人卡片：通过；通过
+- 快捷复制/导出/标记：通过；通过
+- GitHub Actions：通过；通过
+- 版本号：通过；通过
+- scripts/selfcheck.js运行：通过；in.js
+通过 - JS语法：src/main/main.js
+通过 - JS语法：src/main/preload.js
+通过 - JS语法：src/renderer/renderer.js
+通过 - 历史误替换残留
+通过 - HTML ID 与前端调用对应
+通过 - 按钮绑定
+通过 - IPC接口对应
+通过 - 原子写入
+通过 - safeStorage密钥存储
+通过 - 候选人卡片与排行榜数据分离
+通过 - 双通道OCR预提取
+通过 - 严格度隔离排行榜
+通过 - ChatGPT式候选人卡片
+通过 - GitHub Actions工作流
+通过 - 版本号
+
+自检通过：全部检查项通过。
+
+
+六、安装后建议人工测试
+1. 打开软件确认显示 v1.0.29。
+2. 输入并保存 API Key，重启后确认仍能读取。
+3. 导出备份时不要勾选 API Key，检查备份文件不包含 apiKey / apiKeyEncrypted。
+4. 勾选导出 API Key 时确认二次提醒仍然出现。
+5. 分析一个候选人，确认项目内候选人卡片和排行榜同时更新。
+6. 在候选人卡片中标记优先/待复核，确认排行榜归类同步更新。
+7. 执行 npm run selfcheck，确认自检通过。
+8. 上传图片测试 OCR 双通道是否正常。

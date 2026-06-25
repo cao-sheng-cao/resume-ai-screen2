@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
@@ -61,9 +61,83 @@ function readJson(filename, fallback) {
 }
 
 function writeJson(filename, data) {
-  fs.writeFileSync(dataPath(filename), JSON.stringify(data, null, 2), 'utf-8');
+  const target = dataPath(filename);
+  const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
+  const payload = JSON.stringify(data, null, 2);
+  fs.writeFileSync(tmp, payload, 'utf-8');
+  fs.renameSync(tmp, target);
   return true;
 }
+
+function removeJson(filename) {
+  const file = dataPath(filename);
+  if (fs.existsSync(file)) fs.unlinkSync(file);
+  return true;
+}
+
+function canUseSafeStorage() {
+  try {
+    return Boolean(safeStorage?.isEncryptionAvailable?.());
+  } catch {
+    return false;
+  }
+}
+
+function encryptSecret(value) {
+  const text = String(value || '');
+  if (!text) return '';
+  if (!canUseSafeStorage()) return '';
+  return safeStorage.encryptString(text).toString('base64');
+}
+
+function decryptSecret(base64) {
+  const value = String(base64 || '');
+  if (!value || !canUseSafeStorage()) return '';
+  try {
+    return safeStorage.decryptString(Buffer.from(value, 'base64'));
+  } catch {
+    return '';
+  }
+}
+
+function getStoredApiKey(settings = readJson('settings.json', {})) {
+  if (settings.apiKeyEncrypted) {
+    const decrypted = decryptSecret(settings.apiKeyEncrypted);
+    if (decrypted) return decrypted;
+  }
+  return String(settings.apiKey || '');
+}
+
+function setStoredApiKey(settings, key) {
+  const cleanKey = String(key || '').trim();
+  delete settings.apiKey;
+  delete settings.apiKeyEncrypted;
+  settings.apiKeyStorage = 'none';
+
+  if (!cleanKey) return settings;
+
+  if (canUseSafeStorage()) {
+    const encrypted = encryptSecret(cleanKey);
+    if (encrypted) {
+      settings.apiKeyEncrypted = encrypted;
+      settings.apiKeyStorage = 'safeStorage';
+      return settings;
+    }
+  }
+
+  // safeStorage 不可用时才回退到明文，保证旧系统仍可使用。
+  settings.apiKey = cleanKey;
+  settings.apiKeyStorage = 'plain';
+  return settings;
+}
+
+function removeStoredApiKey(settings) {
+  delete settings.apiKey;
+  delete settings.apiKeyEncrypted;
+  settings.apiKeyStorage = 'none';
+  return settings;
+}
+
 
 
 let currentZoomFactor = 1;
@@ -724,7 +798,18 @@ ipcMain.handle('app:get-deepseek-models', () => DEEPSEEK_MODELS);
 
 ipcMain.handle('settings:load-key', () => {
   const settings = readJson('settings.json', {});
-  return { apiKey: settings.apiKey || '', modelKey: settings.modelKey || 'deepseek-reasoner:', strictnessLevel: settings.strictnessLevel || 3 };
+  const apiKey = getStoredApiKey(settings);
+  // 读取旧版明文密钥时，自动迁移为 safeStorage 加密密钥。
+  if (settings.apiKey && canUseSafeStorage()) {
+    setStoredApiKey(settings, settings.apiKey);
+    writeJson('settings.json', settings);
+  }
+  return {
+    apiKey,
+    modelKey: settings.modelKey || 'deepseek-reasoner:',
+    strictnessLevel: settings.strictnessLevel || 3,
+    apiKeyStorage: settings.apiKeyStorage || (settings.apiKey ? 'plain' : 'none')
+  };
 });
 
 ipcMain.handle('settings:save-key', (event, apiKey) => {
@@ -732,21 +817,21 @@ ipcMain.handle('settings:save-key', (event, apiKey) => {
   if (!key) throw new Error('请先输入深度求索接口密钥。');
   if (!key.startsWith('sk-')) throw new Error('这个密钥看起来格式不太对。深度求索接口密钥通常以 sk- 开头。');
   const settings = readJson('settings.json', {});
-  settings.apiKey = key;
+  setStoredApiKey(settings, key);
   writeJson('settings.json', settings);
   return { ok: true };
 });
 
 ipcMain.handle('settings:clear-key', () => {
   const settings = readJson('settings.json', {});
-  delete settings.apiKey;
+  removeStoredApiKey(settings);
   writeJson('settings.json', settings);
   return { ok: true };
 });
 
 ipcMain.handle('settings:save-model', (event, modelKey) => {
   const settings = readJson('settings.json', {});
-  settings.modelKey = String(modelKey || 'deepseek-v4-flash:enabled');
+  settings.modelKey = String(modelKey || 'deepseek-reasoner:');
   writeJson('settings.json', settings);
   return { ok: true };
 });
@@ -1012,8 +1097,15 @@ function buildBackupObject(options = {}) {
   const projects = readJson('projects.json', []);
 
   const safeSettings = { ...settings };
-  if (!includeApiKey) {
-    delete safeSettings.apiKey;
+  const plainApiKey = getStoredApiKey(settings);
+  delete safeSettings.apiKey;
+  delete safeSettings.apiKeyEncrypted;
+  safeSettings.apiKeyStorage = 'none';
+
+  if (includeApiKey && plainApiKey) {
+    // 备份跨电脑导入时无法解密本机 safeStorage 密文，所以只有用户明确选择时才导出明文。
+    safeSettings.apiKey = plainApiKey;
+    safeSettings.apiKeyStorage = 'plain-backup';
   }
 
   return {
@@ -1022,7 +1114,7 @@ function buildBackupObject(options = {}) {
     appVersion: app.getVersion(),
     backupVersion: 1,
     backupTime: new Date().toISOString(),
-    apiKeyIncluded: includeApiKey && Boolean(settings.apiKey),
+    apiKeyIncluded: includeApiKey && Boolean(plainApiKey),
     settings: safeSettings,
     standard,
     projects: Array.isArray(projects) ? projects : [],
@@ -1102,15 +1194,19 @@ ipcMain.handle('backup:import', async () => {
 
   const currentSettings = readJson('settings.json', {});
   const importedSettings = backup.settings && typeof backup.settings === 'object' ? backup.settings : {};
+  const currentApiKey = getStoredApiKey(currentSettings);
+  const importedApiKey = String(importedSettings.apiKey || '').trim();
+
   const mergedSettings = {
     ...currentSettings,
     ...importedSettings
   };
 
-  // 如果导入的备份不包含接口密钥，则保留当前电脑本地已有密钥。
-  if (!importedSettings.apiKey && currentSettings.apiKey) {
-    mergedSettings.apiKey = currentSettings.apiKey;
-  }
+  // 先移除备份中的明文或旧密文，再按当前电脑能力重新保存。
+  removeStoredApiKey(mergedSettings);
+
+  // 如果导入的备份不包含接口密钥，则保留当前电脑已有密钥；如果包含，则重新加密保存。
+  setStoredApiKey(mergedSettings, importedApiKey || currentApiKey);
 
   writeJson('settings.json', mergedSettings);
 

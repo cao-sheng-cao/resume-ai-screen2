@@ -12,10 +12,11 @@
     <aside class="sidebar">
       <div class="brand">
         <img src="../assets/app-icon.png" alt="图标" />
-        <div>
+        <div class="brand-text">
           <strong>简历筛选</strong>
           <span>证据评分</span>
         </div>
+        <button class="icon-btn sidebar-toggle" id="sidebarToggleBtn" title="展开 / 折叠左侧功能区">☰</button>
       </div>
 
       <section class="project-panel">
@@ -33,13 +34,22 @@
       </section>
 
       <nav class="nav">
-        <a href="#key">接口密钥</a>
-        <a href="#standard">岗位标准</a>
-        <a href="#resume">简历评分</a>
-        <a href="#result">评估结果</a>
-        <a href="#leaderboard">排行榜</a>
-        <a href="#backup">数据备份</a>
+        <a href="#key" data-short="0">接口密钥</a>
+        <a href="#standard" data-short="1">岗位标准</a>
+        <a href="#resume" data-short="2">简历评分</a>
+        <a href="#result" data-short="3">评估结果</a>
+        <a href="#leaderboard" data-short="4">排行榜</a>
+        <a href="#backup" data-short="5">数据备份</a>
       </nav>
+      <div class="zoom-box">
+        <span>页面缩放</span>
+        <div>
+          <button class="ghost mini" id="zoomOutBtn">－</button>
+          <button class="ghost mini" id="zoomResetBtn">100%</button>
+          <button class="ghost mini" id="zoomInBtn">＋</button>
+        </div>
+        <small>支持 Ctrl + 鼠标滚轮 / Ctrl + + / Ctrl + - / Ctrl + 0</small>
+      </div>
       <div class="side-note">
         <strong>本地安全</strong>
         <p>数据保存在当前电脑，支持数据备份、候选人备注、岗位筛选与严格度调节。</p>
@@ -49,10 +59,10 @@
     <main class="content">
       <section class="hero panel">
         <div>
-          <div class="eyebrow">本地简历筛选工具｜<span id="appVersionBadge">v1.0.24</span></div>
+          <div class="eyebrow">本地简历筛选工具｜<span id="appVersionBadge">v1.0.25</span></div>
           <div class="project-current">当前项目：<strong id="activeProjectName">默认项目</strong></div>
           <h1>简历岗位匹配评分系统</h1>
-          <p>以极简灰色界面管理多个招聘项目。每个项目独立保存岗位标准、候选人排行榜、备注、归类、评分记录与备份数据。</p>
+          <p>左侧是功能区与项目列表，右侧是操作区。支持设置折叠、页面缩放、双通道OCR预提取、严格度隔离排行榜与本地数据备份。</p>
         </div>
         <div class="hero-card">
           <span>评分</span>
@@ -67,8 +77,12 @@
             <h2>0. 接口密钥</h2>
             <p>每个使用者输入自己的深度求索接口密钥。密钥保存在当前电脑本地数据文件夹。</p>
           </div>
-          <button class="ghost" id="openDataFolderBtn">打开数据文件夹</button>
+          <div class="section-actions">
+            <button class="ghost" id="toggleKeySectionBtn">收起设置</button>
+            <button class="ghost" id="openDataFolderBtn">打开数据文件夹</button>
+          </div>
         </div>
+        <div class="setup-body" id="keySetupBody">
         <div class="key-grid">
           <div>
             <label>深度求索接口密钥</label>
@@ -124,6 +138,7 @@
 
         <div class="message success" id="keySuccess"></div>
         <div class="message error" id="keyError"></div>
+        </div>
       </section>
 
       <section class="panel" id="standard">
@@ -132,9 +147,13 @@
             <h2>1. 岗位标准设置</h2>
             <p>提示已经写入输入框：必要项越硬越好，加分项越具体越好，评分规则越明确越可靠。</p>
           </div>
-          <button class="ghost" id="restoreDefaultBtn">恢复默认通用岗位模板</button>
+          <div class="section-actions">
+            <button class="ghost" id="toggleStandardSectionBtn">收起设置</button>
+            <button class="ghost" id="restoreDefaultBtn">恢复默认通用岗位模板</button>
+          </div>
         </div>
 
+        <div class="setup-body" id="standardSetupBody">
         <div class="two-grid">
           <div>
             <label>岗位名称</label>
@@ -180,6 +199,7 @@
           <button class="ghost" id="loadStandardBtn">读取已保存标准</button>
         </div>
         <div class="status" id="standardStatus"></div>
+        </div>
       </section>
 
       <section class="two-grid" id="resume">

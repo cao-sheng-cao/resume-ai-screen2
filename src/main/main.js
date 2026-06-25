@@ -23,6 +23,12 @@ function createWindow() {
     }
   });
 
+  const settingsForZoom = readJson('settings.json', {});
+  currentZoomFactor = clampZoom(settingsForZoom.zoomFactor || currentZoomFactor || 1);
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.setZoomFactor(currentZoomFactor);
+  });
+
   win.loadFile(path.join(__dirname, '../renderer/index.html'));
 }
 
@@ -57,6 +63,28 @@ function readJson(filename, fallback) {
 function writeJson(filename, data) {
   fs.writeFileSync(dataPath(filename), JSON.stringify(data, null, 2), 'utf-8');
   return true;
+}
+
+
+let currentZoomFactor = 1;
+
+function clampZoom(value) {
+  const n = Number(value || 1);
+  return Math.max(0.7, Math.min(1.45, Math.round(n * 100) / 100));
+}
+
+function applyZoomToAllWindows() {
+  BrowserWindow.getAllWindows().forEach(win => {
+    if (!win.isDestroyed()) {
+      win.webContents.setZoomFactor(currentZoomFactor);
+    }
+  });
+}
+
+function saveZoomFactor() {
+  const settings = readJson('settings.json', {});
+  settings.zoomFactor = currentZoomFactor;
+  writeJson('settings.json', settings);
 }
 
 function cleanText(value) {
@@ -952,6 +980,22 @@ ipcMain.handle('projects:save-active', (event, projectId) => {
 });
 
 ipcMain.handle('app:open-data-folder', () => shell.openPath(app.getPath('userData')));
+
+ipcMain.handle('app:adjust-zoom', (event, delta) => {
+  currentZoomFactor = clampZoom(currentZoomFactor + Number(delta || 0));
+  applyZoomToAllWindows();
+  saveZoomFactor();
+  return { zoomFactor: currentZoomFactor };
+});
+
+ipcMain.handle('app:reset-zoom', () => {
+  currentZoomFactor = 1;
+  applyZoomToAllWindows();
+  saveZoomFactor();
+  return { zoomFactor: currentZoomFactor };
+});
+
+ipcMain.handle('app:get-zoom', () => ({ zoomFactor: currentZoomFactor }));
 
 
 function safeFileTimestamp() {

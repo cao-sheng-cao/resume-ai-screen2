@@ -23,5 +23,8 @@ contextBridge.exposeInMainWorld('resumeApp', {
   saveActiveProjectId: (projectId) => ipcRenderer.invoke('projects:save-active', projectId),
   exportBackup: (options) => ipcRenderer.invoke('backup:export', options),
   importBackup: () => ipcRenderer.invoke('backup:import'),
-  openDataFolder: () => ipcRenderer.invoke('app:open-data-folder')
+  openDataFolder: () => ipcRenderer.invoke('app:open-data-folder'),
+  adjustZoom: (delta) => ipcRenderer.invoke('app:adjust-zoom', delta),
+  resetZoom: () => ipcRenderer.invoke('app:reset-zoom'),
+  getZoom: () => ipcRenderer.invoke('app:get-zoom')
 });

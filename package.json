@@ -1,7 +1,7 @@
 {
   "name": "resume-ai-screener-electron",
-  "version": "1.0.24",
-  "description": "本地简历岗位匹配评分系统：完整回归自检版，覆盖历史所有已知问题。",
+  "version": "1.0.25",
+  "description": "本地简历岗位匹配评分系统：界面重构为左侧功能区/右侧操作区，支持设置区折叠、侧边栏折叠和Ctrl缩放。",
   "main": "main.js",
   "author": "Resume AI Screener",
   "license": "MIT",

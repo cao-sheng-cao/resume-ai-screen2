@@ -1,0 +1,54 @@
+{
+  "name": "resume-ai-screener-electron",
+  "version": "1.0.15",
+  "description": "本地简历岗位匹配评分系统：确认检查结果与排行榜均可折叠展开，并再次完成代码自检。",
+  "main": "main.js",
+  "author": "Resume AI Screener",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis portable --publish never",
+    "dist:dir": "electron-builder --dir"
+  },
+  "dependencies": {
+    "mammoth": "^1.8.0",
+    "pdf-parse": "^1.1.1"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.resume.ai.screener",
+    "productName": "简历岗位匹配评分系统",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "src/**/*",
+      "!**/*.map",
+      "!**/.DS_Store"
+    ],
+    "win": {
+      "icon": "src/assets/app-icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "简历岗位匹配评分系统",
+      "installerIcon": "src/assets/app-icon.ico",
+      "uninstallerIcon": "src/assets/app-icon.ico"
+    },
+    "asar": false
+  }
+}

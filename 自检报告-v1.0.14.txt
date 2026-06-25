@@ -1,0 +1,25 @@
+简历岗位匹配评分系统 v1.0.14 自检报告
+
+一、用户反馈问题
+上传简历时报错：
+Error invoking remote method 'resume:select-and-parse': TypeError: path.常驻name is not a function
+
+二、判断
+该报错说明实际安装包里仍然存在旧代码：
+path.常驻name(filePath)
+
+三、本版修复
+1. 源码中确认已不存在 path.常驻name。
+2. 将返回文件名逻辑改为 safeBaseName(filePath)，不再直接依赖 path.basename。
+3. 增强 resume:select-and-parse 的错误提示。
+4. 首页增加版本号 v1.0.14，便于确认是否真正安装新版。
+
+四、自检
+- path.常驻name 残留：0
+- safeBaseName 函数：存在
+- JS 语法检查：通过
+- HTML ID 与前端调用：通过
+- IPC 接口对应：通过
+
+五、重要提醒
+如果安装后仍然显示 path.常驻name 报错，说明 GitHub 仓库没有真正覆盖旧 src/main/main.js，或者安装的仍是旧版 Setup.exe。

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://api.deepseek.com;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>简历岗位匹配评分系统</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="../assets/app-icon.png" alt="图标" />
+        <div>
+          <strong>简历筛选</strong>
+          <span>证据评分</span>
+        </div>
+      </div>
+
+      <section class="project-panel">
+        <div class="project-title">
+          <span>项目</span>
+        </div>
+        <div class="project-create">
+          <input id="projectNameInput" placeholder="输入项目名称，例如：腾讯云法国销售岗" />
+          <button class="primary mini" id="addProjectBtn">新建项目</button>
+        </div>
+        <div class="project-list" id="projectList"></div>
+        <button class="ghost full" id="exportAllCsvBtn">导出全部项目排行榜</button>
+        <div class="project-message" id="projectMessage"></div>
+      </section>
+
+      <nav class="nav">
+        <a href="#key">接口密钥</a>
+        <a href="#standard">岗位标准</a>
+        <a href="#resume">简历评分</a>
+        <a href="#result">评估结果</a>
+        <a href="#leaderboard">排行榜</a>
+        <a href="#backup">数据备份</a>
+      </nav>
+      <div class="side-note">
+        <strong>本地安全</strong>
+        <p>数据保存在当前电脑，支持数据备份、候选人备注、岗位筛选与严格度调节。</p>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="hero panel">
+        <div>
+          <div class="eyebrow">本地简历筛选工具｜<span id="appVersionBadge">v1.0.14</span></div>
+          <div class="project-current">当前项目：<strong id="activeProjectName">默认项目</strong></div>
+          <h1>简历岗位匹配评分系统</h1>
+          <p>以极简灰色界面管理多个招聘项目。每个项目独立保存岗位标准、候选人排行榜、备注、归类、评分记录与备份数据。</p>
+        </div>
+        <div class="hero-card">
+          <span>评分</span>
+          <strong>0-100</strong>
+          <small>初筛 · 归类 · 备注</small>
+        </div>
+      </section>
+
+      <section class="panel" id="key">
+        <div class="section-title">
+          <div>
+            <h2>0. 接口密钥</h2>
+            <p>每个使用者输入自己的深度求索接口密钥。密钥保存在当前电脑本地数据文件夹。</p>
+          </div>
+          <button class="ghost" id="openDataFolderBtn">打开数据文件夹</button>
+        </div>
+        <div class="key-grid">
+          <div>
+            <label>深度求索接口密钥</label>
+            <input id="apiKey" type="password" placeholder="粘贴接口密钥，例如 sk-xxxxxxxx" />
+          </div>
+          <button class="ghost" id="toggleKeyBtn">显示 / 隐藏</button>
+          <button class="primary" id="saveKeyBtn">保存密钥</button>
+        </div>
+        <div class="actions">
+          <button class="ghost" id="loadKeyBtn">读取已保存密钥</button>
+          <button class="danger" id="clearKeyBtn">清除密钥</button>
+        </div>
+
+        <div class="model-box">
+          <div>
+            <label>深度求索模型选择</label>
+            <select id="modelSelect"></select>
+            <p class="hint" id="modelInfo">快速模式适合批量初筛，推理模式适合重点候选人复核。</p>
+          </div>
+          <button class="ghost" id="saveModelBtn">保存模型选择</button>
+        </div>
+
+
+
+        <div class="strictness-card">
+          <div class="strictness-head">
+            <div>
+              <label>人工智能判断严格程度</label>
+              <p class="hint">1度最宽松，适合拓展人才池；5度最严格，适合终面前硬筛或高价值岗位。</p>
+            </div>
+            <div class="strictness-value" id="strictnessBadge">3度｜标准推荐</div>
+          </div>
+          <input id="strictnessLevel" class="strictness-slider" type="range" min="1" max="5" step="1" value="3" aria-label="人工智能判断严格程度" />
+          <div class="strictness-scale">
+            <span>1 宽松</span><span>2</span><span>3 标准</span><span>4</span><span>5 极严格</span>
+          </div>
+          <div class="strictness-info" id="strictnessInfo"></div>
+          <div class="strictness-examples">
+            <strong>同一种情况参考：</strong>
+            <div id="strictnessExample">例如候选人有云生态合作经验，但没有明确写直接云产品销售：3度会判为“云背景部分满足，直接云销售与 成交能力待核实”。</div>
+          </div>
+          <div class="actions no-margin">
+            <button class="ghost" id="saveStrictnessBtn">保存严格度</button>
+          </div>
+        </div>
+
+        <div class="message success" id="keySuccess"></div>
+        <div class="message error" id="keyError"></div>
+      </section>
+
+      <section class="panel" id="standard">
+        <div class="section-title">
+          <div>
+            <h2>1. 岗位标准设置</h2>
+            <p>提示已经写入输入框：必要项越硬越好，加分项越具体越好，评分规则越明确越可靠。</p>
+          </div>
+          <button class="ghost" id="restoreDefaultBtn">恢复默认法国销售岗</button>
+        </div>
+
+        <div class="two-grid">
+          <div>
+            <label>岗位名称</label>
+            <input id="jobTitle" placeholder="例如：腾讯云法国高级战略销售岗位" />
+          </div>
+          <div>
+            <label>推进分数线</label>
+            <input id="passLine" type="number" min="0" max="100" value="75" />
+          </div>
+        </div>
+
+        <label>岗位说明</label>
+        <textarea id="positionOverview" placeholder="写清楚岗位负责什么、面向什么客户、核心目标是什么。例：负责法国/南欧战略客户开发、云业务收入增长、高价值合同谈判，重点行业为零售、电信、电商、游戏。"></textarea>
+
+        <label>评分规则</label>
+        <textarea id="scoringRule" placeholder="评分规则要明确。例：总分100分：企业销售20分；云/科技/数字化行业20分；战略大客户15分；主动开发与成交15分；法国/南欧市场10分；语言10分；目标行业5分；云厂/人工智能/电商加分5分。缺少销售、法语、法国常驻任一核心项时原则上不建议推进。"></textarea>
+
+        <div class="three-grid list-panels">
+          <div class="standard-box">
+            <h3>必要项 Must-have</h3>
+            <p class="hint">越硬越好：写清楚“必须有、如何算满足、什么不算满足”。</p>
+            <div id="mustHaveList" class="editable-list"></div>
+            <button class="ghost small" data-add="must">新增必要项</button>
+          </div>
+
+          <div class="standard-box">
+            <h3>加分项 Nice-to-have</h3>
+            <p class="hint">越具体越好：写具体公司、行业、产品、客户类型、项目经验。</p>
+            <div id="bonusList" class="editable-list"></div>
+            <button class="ghost small" data-add="bonus">新增加分项</button>
+          </div>
+
+          <div class="standard-box">
+            <h3>一票否决 / 强风险</h3>
+            <p class="hint">用于提高可靠性：命中后会显著影响推进建议。</p>
+            <div id="vetoList" class="editable-list"></div>
+            <button class="ghost small" data-add="veto">新增否决项</button>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="saveStandardBtn">保存岗位标准</button>
+          <button class="ghost" id="loadStandardBtn">读取已保存标准</button>
+        </div>
+        <div class="status" id="standardStatus"></div>
+      </section>
+
+      <section class="two-grid" id="resume">
+        <div class="panel">
+          <h2>2. 候选人简历</h2>
+          <div class="upload-card">
+            <strong>选择并读取简历</strong>
+            <p>支持 简历文档。扫描件 可能读取不完整，可直接复制正文粘贴。</p>
+            <button class="primary" id="selectResumeBtn">选择简历文件</button>
+          </div>
+          <label>简历正文</label>
+          <textarea id="resumeText" class="resume-text" placeholder="读取简历后会显示在这里。也可以直接粘贴候选人简历正文。"></textarea>
+          <div class="status" id="resumeStatus"></div>
+          <div class="message warning" id="resumeWarning"></div>
+          <div class="message error" id="resumeError"></div>
+        </div>
+
+        <div class="panel">
+          <h2>3. 开始评分</h2>
+          <label>额外备注</label>
+          <textarea id="extraNotes" placeholder="例如：请严格判断是否是真正销售；法语、英语、巴黎或法国常驻是关键必要项；云厂背景、零售、电信、电商、游戏经验优先。"></textarea>
+          <div class="actions">
+            <button class="primary big" id="analyzeBtn">开始 人工智能评分</button>
+            <button class="ghost" id="fillNotesBtn">填入法国销售岗备注</button>
+          </div>
+          <div class="quality-card">
+            <h3>本地安全将输出</h3>
+            <ul>
+              <li>每条必要项/加分项的简历原文依据</li>
+              <li>整体置信度、简历完整度、证据充分度</li>
+              <li>一票否决项检查、风险点、缺失点</li>
+              <li>待人工核实项与面试追问</li>
+            </ul>
+          </div>
+          <div class="status" id="analyzeStatus"></div>
+          <div class="message error" id="analyzeError"></div>
+        </div>
+      </section>
+
+      <section class="panel result" id="result">
+        <div class="section-title">
+          <div>
+            <h2>4. 评估结果</h2>
+            <p>评分用于初筛排序；候选人姓名与大致年龄会根据简历内容识别/推断，最终仍需人工复核。</p>
+          </div>
+          <button class="ghost" id="addCurrentToRankBtn">加入排行榜</button>
+        </div>
+
+        <div class="score-row">
+          <div class="score-circle" id="scoreCircle"><span id="scoreText">0</span></div>
+          <div class="summary" id="summaryBox"></div>
+          <div class="confidence-card">
+            <span>置信度</span>
+            <strong id="confidenceText">0%</strong>
+            <small id="uncertaintyReason">待生成</small>
+          </div>
+        </div>
+
+        <div class="metrics">
+          <div><span>销售</span><strong id="mSales">0</strong></div>
+          <div><span>行业背景</span><strong id="mIndustry">0</strong></div>
+          <div><span>大客户</span><strong id="mAccount">0</strong></div>
+          <div><span>成交</span><strong id="mClosing">0</strong></div>
+          <div><span>地点</span><strong id="mLocation">0</strong></div>
+          <div><span>语言</span><strong id="mLanguage">0</strong></div>
+          <div><span>加分</span><strong id="mBonus">0</strong></div>
+          <div><span>综合</span><strong id="mOverall">0</strong></div>
+        </div>
+
+        <div class="token-panel">
+          <div><span>本次模型</span><strong id="usedModel">-</strong></div>
+          <div><span>输入令牌</span><strong id="promptTokens">0</strong></div>
+          <div><span>输出令牌</span><strong id="completionTokens">0</strong></div>
+          <div><span>总令牌</span><strong id="totalTokens">0</strong></div>
+          <div><span>缓存命中</span><strong id="cacheHitTokens">0</strong></div>
+          <div><span>缓存未命中</span><strong id="cacheMissTokens">0</strong></div>
+          <div><span>推理令牌</span><strong id="reasoningTokens">0</strong></div>
+        </div>
+
+        <div class="two-grid checks">
+          <details class="check-list collapsible-check" open>
+            <summary>
+              <span>必要项检查</span>
+              <small id="mustHaveCount">待生成</small>
+            </summary>
+            <div id="mustHaveResult"></div>
+          </details>
+          <details class="check-list collapsible-check">
+            <summary>
+              <span>加分项检查</span>
+              <small id="bonusCount">待生成</small>
+            </summary>
+            <div id="bonusResult"></div>
+          </details>
+        </div>
+        <details class="check-list collapsible-check">
+          <summary>
+            <span>一票否决 / 强风险检查</span>
+            <small id="vetoCount">待生成</small>
+          </summary>
+          <div id="vetoResult"></div>
+        </details>
+
+        <div class="two-grid cards-grid">
+          <div class="mini-card"><h3>匹配点</h3><ul id="matchedPoints"></ul></div>
+          <div class="mini-card"><h3>缺失 / 不合适点</h3><ul id="missingPoints"></ul></div>
+          <div class="mini-card"><h3>风险点</h3><ul id="riskPoints"></ul></div>
+          <div class="mini-card"><h3>待人工核实项</h3><ul id="verificationItems"></ul></div>
+          <div class="mini-card"><h3>面试追问</h3><ul id="interviewQuestions"></ul></div>
+          <div class="mini-card"><h3>关键原文依据</h3><ul id="evidenceQuotes"></ul></div>
+        </div>
+      </section>
+
+      <section class="panel" id="leaderboard">
+        <div class="section-title">
+          <div>
+            <h2>5. 候选人排行榜</h2>
+            <p>按岗位、时间、归类筛选候选人，并可为每位候选人添加备注。排行榜默认展开，也可以折叠减少页面长度。</p>
+          </div>
+          <div class="actions no-margin">
+            <button class="ghost" id="exportCsvBtn">导出当前项目排行榜</button>
+            <button class="ghost" id="resetRankFilterBtn">重置筛选</button>
+            <button class="danger" id="clearRankBtn">清空</button>
+          </div>
+        </div>
+
+        <details class="leaderboard-collapse" open>
+          <summary>
+            <span>展开 / 收起排行榜</span>
+            <small id="rankToggleHint">默认展开，可收起减少页面长度</small>
+          </summary>
+
+          <div class="filter-card">
+            <div class="filter-grid">
+              <div>
+                <label>按岗位筛选</label>
+                <select id="rankJobFilter"><option value="">全部岗位</option></select>
+              </div>
+              <div>
+                <label>按归类筛选</label>
+                <select id="rankCategoryFilter">
+                  <option value="">全部归类</option>
+                  <option value="优先推进">优先推进</option>
+                  <option value="建议推进">建议推进</option>
+                  <option value="待复核">待复核</option>
+                  <option value="作为储备">作为储备</option>
+                  <option value="不建议推进">不建议推进</option>
+                  <option value="已联系">已联系</option>
+                  <option value="已面试">已面试</option>
+                  <option value="已淘汰">已淘汰</option>
+                </select>
+              </div>
+              <div>
+                <label>关键词搜索</label>
+                <input id="rankKeywordFilter" placeholder="搜索姓名、备注、摘要" />
+              </div>
+              <div class="week-filter">
+                <label>时间范围</label>
+                <label class="inline-check compact"><input id="rankThisWeekOnly" type="checkbox" /> <span>只看本周加入</span></label>
+              </div>
+            </div>
+            <div class="rank-summary" id="rankSummary">当前显示当前项目内的候选人。</div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>排名</th>
+                  <th>候选人 / 大致年龄</th>
+                  <th>分数</th>
+                  <th>置信度</th>
+                  <th>岗位</th>
+                  <th>归类</th>
+                  <th>模型 / 令牌</th>
+                  <th>备注</th>
+                  <th>时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardBody"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+
+      <section class="panel" id="backup">
+        <div class="section-title">
+          <div>
+            <h2>6. 数据备份 / 恢复</h2>
+            <p>完整备份适合更新软件、换电脑或防止数据丢失；排行榜表格适合查看，不适合完整恢复。</p>
+          </div>
+          <div class="actions no-margin">
+            <button class="ghost" id="exportBackupBtn">导出完整备份</button>
+            <button class="primary" id="importBackupBtn">导入完整备份</button>
+          </div>
+        </div>
+
+        <div class="quality-grid">
+          <div class="quality-card">
+            <h3>备份包含</h3>
+            <ul>
+              <li>岗位标准、必要项、加分项、一票否决项</li>
+              <li>全部项目、项目内排行榜、姓名、年龄推断、归类、备注、评分摘要、置信度、模型与令牌记录</li>
+              <li>模型选择、当前项目等本地设置</li>
+            </ul>
+          </div>
+          <div class="quality-card">
+            <h3>接口密钥安全</h3>
+            <p>默认不建议导出接口密钥。只有勾选下方选项时，才会把接口密钥一并写入备份文件。</p>
+            <label class="inline-check">
+              <input id="includeApiKeyBackup" type="checkbox" />
+              <span>导出时包含接口密钥（敏感信息，不要分享给别人）</span>
+            </label>
+          </div>
+          <div class="quality-card">
+            <h3>推荐用法</h3>
+            <ul>
+              <li>更新软件前，先导出一次完整备份</li>
+              <li>换电脑时，先导出完整备份，再在新电脑导入</li>
+              <li>日常给客户看排行榜，使用排行榜导出</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="status" id="backupStatus"></div>
+        <div class="message success" id="backupSuccess"></div>
+        <div class="message error" id="backupError"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+简历岗位匹配评分系统 v1.0.10 自检报告
+
+一、核心文件
+- package.json：存在
+- main.js：存在
+- src/main/main.js：存在
+- src/main/preload.js：存在
+- src/renderer/index.html：存在
+- src/renderer/renderer.js：存在
+- src/renderer/styles.css：存在
+- .github/workflows/build-windows.yml：存在
+
+二、语法与结构检查
+- 主入口 main.js：通过 node --check
+- 主进程 src/main/main.js：通过 node --check
+- 预加载 src/main/preload.js：通过 node --check
+- 前端 src/renderer/renderer.js：通过 node --check
+- HTML ID 与前端调用：通过
+- 前端 preload 接口与主进程 IPC handler：通过
+- bindEvents 中引用的函数：通过
+- 误中文替换残留检查：通过
+
+三、本次重点修复
+- 补回人工智能判断严格程度滑杆的 updateStrictnessInfo 函数
+- 补回保存严格度的 saveStrictnessChoice 函数
+- 修复初始化时因函数缺失导致按钮点击无反应的问题
+- 修复状态提示 setStatus 不显示的问题
+- 修复加入候选人后左侧项目候选人数不刷新的问题
+- 强化 show / hideMessages / setText 的空值保护，避免单个元素异常导致整页功能失效
+- 保留并检查多项目管理、当前项目排行榜导出、全部项目排行榜导出、备份恢复、备注归类、候选人删除等功能
+
+四、界面优化
+- 严格度滑杆增加进度填充、圆形滑块、按压反馈
+- 滑杆拖动时实时更新严格度标题、说明与参考示例
+- 字体统一为系统字体，优先使用 Apple / Windows 系统字体
+- 调整标题、正文、按钮、表格、输入框字号与行距
+- 补充 model-box、strictness-card、strictness-scale 等缺失样式
+- 保持极简灰色、低饱和度、大圆角风格
+
+五、建议人工测试
+1. 打开软件，检查页面是否能正常加载。
+2. 新增项目、切换项目、改名、删除项目。
+3. 拖动严格度 1-5 度滑杆，查看文字是否实时变化。
+4. 保存严格度，关闭软件后重开检查是否保留。
+5. 上传简历并评分。
+6. 查看候选人姓名、大致年龄、评分、令牌用量。
+7. 修改候选人备注和归类。
+8. 删除候选人。
+9. 导出当前项目排行榜。
+10. 导出全部项目排行榜。
+11. 导出完整备份并重新导入。

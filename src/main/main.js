@@ -156,13 +156,154 @@ function normalizeUsage(usage) {
   };
 }
 
+function mergeUsage(...items) {
+  return items.map(normalizeUsage).reduce((acc, u) => ({
+    promptTokens: acc.promptTokens + Number(u.promptTokens || 0),
+    completionTokens: acc.completionTokens + Number(u.completionTokens || 0),
+    totalTokens: acc.totalTokens + Number(u.totalTokens || 0),
+    cacheHitTokens: acc.cacheHitTokens + Number(u.cacheHitTokens || 0),
+    cacheMissTokens: acc.cacheMissTokens + Number(u.cacheMissTokens || 0),
+    reasoningTokens: acc.reasoningTokens + Number(u.reasoningTokens || 0)
+  }), {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    cacheHitTokens: 0,
+    cacheMissTokens: 0,
+    reasoningTokens: 0
+  });
+}
+
+function imageMimeFromPath(filePath) {
+  const ext = path.extname(String(filePath || '')).toLowerCase();
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  if (ext === '.png') return 'image/png';
+  if (ext === '.webp') return 'image/webp';
+  return '';
+}
+
+function isImageFile(filePath) {
+  return Boolean(imageMimeFromPath(filePath));
+}
+
+async function ocrImageFile(filePath) {
+  try {
+    const { recognize } = require('tesseract.js');
+    let result;
+    try {
+      result = await recognize(filePath, 'eng+fra');
+    } catch (firstErr) {
+      result = await recognize(filePath, 'eng');
+    }
+    const text = cleanText(result?.data?.text || '');
+    return {
+      filename: safeBaseName(filePath),
+      text,
+      confidence: Math.round(Number(result?.data?.confidence || 0))
+    };
+  } catch (err) {
+    return {
+      filename: safeBaseName(filePath),
+      text: '',
+      confidence: 0,
+      error: err.message || String(err)
+    };
+  }
+}
+
+function buildProfileExtractionPrompt({ textBlocks, ocrBlocks, imageCount, filenames }) {
+  return `
+请你作为招聘资料整理助手，对候选人的个人主页、网页打印PDF、截图OCR文本、简历片段进行一次【候选人信息预提取】。
+
+重要规则：
+1. 你不是做最终岗位匹配评分，只负责把资料整理成清晰、完整、可供下一步评分使用的候选人资料。
+2. 必须基于上传资料中的可见信息，不得编造。
+3. 截图图片已经先通过本地OCR转换为文字；请基于OCR文本提取可见的职位、公司、项目、教育、技能、地点、语言、时间线。OCR可能有错字，需要结合上下文保守修正。
+4. 如果资料来自个人主页或网页截图，请提取页面中的所有候选人相关信息，包括简介、经历、教育、技能、证书、项目、联系方式、地理位置、语言、链接、成就等。
+5. 如果某些信息不完整，请写“待核实”。
+6. 输出必须是合法 JSON，不要输出 Markdown，不要额外解释。
+
+【文本通道：PDF/Word/TXT直接读取结果】
+${textBlocks.join('\n\n---\n\n') || '无文本层资料。'}
+
+【图片通道：截图图片本地OCR结果】
+${ocrBlocks.join('\n\n---\n\n') || '无图片OCR资料。'}
+
+【上传文件名】
+${filenames.map((x, i) => `${i + 1}. ${x}`).join('\n')}
+
+【图片数量】
+${imageCount}
+
+请输出 JSON：
+{
+  "candidateName": "候选人姓名，无法识别写待识别",
+  "headline": "候选人个人标题/当前职位/主页简介",
+  "location": "地点，无法识别写待核实",
+  "contact": ["邮箱/电话/主页链接/社媒链接，无法识别可为空"],
+  "languages": ["语言能力"],
+  "education": ["教育经历，含学校/专业/年份"],
+  "experience": [
+    {
+      "company": "公司",
+      "title": "职位",
+      "period": "时间",
+      "location": "地点",
+      "description": "职责、业务、客户、项目、成果"
+    }
+  ],
+  "skills": ["技能、产品、行业、工具、技术、业务关键词"],
+  "certifications": ["证书/奖项/认证"],
+  "projects": ["项目/案例/作品/重点经历"],
+  "achievements": ["可量化成果/销售结果/合同/增长/管理规模等"],
+  "sourceEvidence": ["关键原文依据或图片中可见短语"],
+  "uncertainFields": ["需要人工核实的信息"],
+  "normalizedResumeText": "把以上信息整理为一份完整候选人资料，适合后续与岗位条件进行深度匹配评分，控制在3000字以内。"
+}`.trim();
+}
+
+async function requestDeepSeek({ apiKey, modelConfig, messages, temperature = 0.1, json = true }) {
+  const requestBody = {
+    model: modelConfig.id,
+    messages,
+    temperature,
+    stream: false
+  };
+
+  if (json) requestBody.response_format = { type: 'json_object' };
+  if (modelConfig.thinking === 'enabled' || modelConfig.thinking === 'disabled') {
+    requestBody.thinking = { type: modelConfig.thinking };
+  }
+
+  const response = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + apiKey
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  const raw = await response.text();
+  if (!response.ok) {
+    throw new Error('深度求索接口请求失败：' + raw.slice(0, 800));
+  }
+
+  const data = JSON.parse(raw);
+  return {
+    data,
+    content: data.choices?.[0]?.message?.content || '',
+    usage: data.usage || {}
+  };
+}
+
 const DEEPSEEK_MODELS = [
-  { id: 'deepseek-v4-flash', label: '深度求索第四代极速｜快速评分', thinking: 'disabled', note: '速度快、成本低，适合批量初筛' },
-  { id: 'deepseek-v4-flash', label: '深度求索第四代极速｜严谨推理', thinking: 'enabled', note: '默认推荐的严谨模式，适合重点候选人复核' },
-  { id: 'deepseek-v4-pro', label: '深度求索第四代专业｜高质量评分', thinking: 'disabled', note: '质量更高、成本更高' },
-  { id: 'deepseek-v4-pro', label: '深度求索第四代专业｜高质量推理', thinking: 'enabled', note: '最严谨但更慢、更贵' },
-  { id: 'deepseek-chat', label: '旧版对话模型｜兼容快速模式', thinking: '', note: '旧兼容模型名，对应非思考模式' },
-  { id: 'deepseek-reasoner', label: '旧版推理模型｜兼容推理模式', thinking: '', note: '旧兼容模型名，对应思考模式' }
+  { id: 'deepseek-chat', label: '旧版对话模型｜兼容快速模式', thinking: '', note: '兼容模型，适合普通批量初筛' },
+  { id: 'deepseek-reasoner', label: '旧版推理模型｜兼容推理模式', thinking: '', note: '兼容推理模型，适合重点候选人复核' },
+  { id: 'deepseek-v4-flash', label: '深度求索第四代极速｜严谨推理', thinking: 'enabled', note: '如账号支持该模型，可用于严谨复核' },
+  { id: 'deepseek-v4-flash', label: '深度求索第四代极速｜快速评分', thinking: 'disabled', note: '如账号支持该模型，可用于快速评分' },
+  { id: 'deepseek-v4-pro', label: '深度求索第四代专业｜高质量推理', thinking: 'enabled', note: '如账号支持该模型，可用于高质量复核' },
+  { id: 'deepseek-v4-pro', label: '深度求索第四代专业｜高质量评分', thinking: 'disabled', note: '如账号支持该模型，可用于高质量评分' }
 ];
 
 const STRICTNESS_LEVELS = {
@@ -382,6 +523,9 @@ function normalizeResult(data, passLine) {
     strictnessLevel: clamp(data?.strictnessLevel ?? 3, 1, 5),
     strictnessLabel: data?.strictnessLabel || getStrictnessConfig(data?.strictnessLevel || 3).label,
     usage: normalizeUsage(data?.usage),
+    extractionUsage: normalizeUsage(data?.extractionUsage),
+    scoringUsage: normalizeUsage(data?.scoringUsage),
+    tokenUsageNote: String(data?.tokenUsageNote || ''),
     createdAt: new Date().toISOString()
   };
 }
@@ -552,7 +696,7 @@ ipcMain.handle('app:get-deepseek-models', () => DEEPSEEK_MODELS);
 
 ipcMain.handle('settings:load-key', () => {
   const settings = readJson('settings.json', {});
-  return { apiKey: settings.apiKey || '', modelKey: settings.modelKey || 'deepseek-v4-flash:enabled', strictnessLevel: settings.strictnessLevel || 3 };
+  return { apiKey: settings.apiKey || '', modelKey: settings.modelKey || 'deepseek-reasoner:', strictnessLevel: settings.strictnessLevel || 3 };
 });
 
 ipcMain.handle('settings:save-key', (event, apiKey) => {
@@ -614,6 +758,170 @@ ipcMain.handle('resume:select-and-parse', async () => {
     const msg = err && err.message ? err.message : String(err);
     throw new Error('简历读取失败：' + msg);
   }
+});
+
+
+ipcMain.handle('profile:select-and-extract', async (event, payload = {}) => {
+  const settings = readJson('settings.json', {});
+  const apiKey = String(payload.apiKey || settings.apiKey || '').trim();
+  if (!apiKey) throw new Error('请先输入并保存接口密钥，再进行个人主页PDF/图片双通道预提取。');
+
+  const modelKey = String(payload.modelKey || settings.modelKey || 'deepseek-reasoner:');
+  const modelConfig = getModelConfig(modelKey);
+  const strictnessConfig = getStrictnessConfig(payload.strictnessLevel || settings.strictnessLevel || 3);
+
+  const result = await dialog.showOpenDialog({
+    title: '选择候选人个人主页PDF、简历PDF或截图图片（图片最多9张）',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: '候选人资料', extensions: ['pdf', 'docx', 'txt', 'md', 'png', 'jpg', 'jpeg', 'webp'] },
+      { name: 'PDF / Word / 文本', extensions: ['pdf', 'docx', 'txt', 'md'] },
+      { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
+      { name: '全部文件', extensions: ['*'] }
+    ]
+  });
+
+  if (result.canceled || !result.filePaths?.length) return { canceled: true };
+
+  const files = result.filePaths;
+  const imageFiles = files.filter(isImageFile);
+  if (imageFiles.length > 9) throw new Error('图片最多支持上传9张。请减少截图数量后重新上传。');
+
+  const textBlocks = [];
+  const ocrBlocks = [];
+  const warnings = [];
+  const filenames = files.map(safeBaseName);
+  const ocrResults = [];
+
+  for (const filePath of files) {
+    if (isImageFile(filePath)) {
+      const ocr = await ocrImageFile(filePath);
+      ocrResults.push(ocr);
+      if (ocr.text) {
+        ocrBlocks.push(`【图片OCR：${ocr.filename}｜OCR置信度约${ocr.confidence || 0}%】\n${ocr.text.slice(0, 20000)}`);
+        if (ocr.confidence && ocr.confidence < 45) {
+          warnings.push(`${ocr.filename}：OCR置信度较低，建议人工核对截图内容。`);
+        }
+      } else {
+        warnings.push(`${ocr.filename}：本地OCR未能读取到有效文字。${ocr.error ? '原因：' + ocr.error : ''}`);
+      }
+      continue;
+    }
+
+    try {
+      const parsed = await parseResumeFile(filePath);
+      if (parsed.text) {
+        textBlocks.push(`【文件：${parsed.filename}】\n${parsed.text.slice(0, 45000)}`);
+      }
+      if (parsed.warning) warnings.push(`${parsed.filename}：${parsed.warning}`);
+    } catch (err) {
+      warnings.push(`${safeBaseName(filePath)}：${err.message || String(err)}`);
+    }
+  }
+
+  if (!textBlocks.length && !ocrBlocks.length) {
+    throw new Error('没有可用于预提取的文字资料。请上传可复制文字的PDF/Word/TXT，或上传清晰PNG/JPG/WEBP截图。');
+  }
+
+  const prompt = buildProfileExtractionPrompt({ textBlocks, ocrBlocks, imageCount: imageFiles.length, filenames });
+
+  const aiResult = await requestDeepSeek({
+    apiKey,
+    modelConfig,
+    temperature: Math.min(0.2, strictnessConfig.temperature + 0.05),
+    json: true,
+    messages: [
+      {
+        role: 'system',
+        content: '你是严谨的候选人资料预提取助手。你必须只输出合法 JSON，不要输出 Markdown。'
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ]
+  });
+
+  const parsed = parseModelJson(aiResult.content);
+  const normalizedResumeText = cleanText(
+    parsed.normalizedResumeText ||
+    [
+      `候选人姓名：${parsed.candidateName || '待识别'}`,
+      `个人标题：${parsed.headline || '待核实'}`,
+      `地点：${parsed.location || '待核实'}`,
+      `联系方式：${arr(parsed.contact).join('；')}`,
+      `语言：${arr(parsed.languages).join('；')}`,
+      `教育经历：${arr(parsed.education).join('；')}`,
+      `工作经历：${JSON.stringify(parsed.experience || [], null, 2)}`,
+      `技能关键词：${arr(parsed.skills).join('；')}`,
+      `证书/奖项：${arr(parsed.certifications).join('；')}`,
+      `项目/案例：${arr(parsed.projects).join('；')}`,
+      `成果：${arr(parsed.achievements).join('；')}`,
+      `关键依据：${arr(parsed.sourceEvidence).join('；')}`,
+      `待核实：${arr(parsed.uncertainFields).join('；')}`
+    ].join('\n')
+  );
+
+  const readable = [
+    '【AI预提取候选人资料｜双通道】',
+    `资料来源：${filenames.join('；')}`,
+    `文本通道文件数：${files.length - imageFiles.length}`,
+    `图片OCR通道文件数：${imageFiles.length}`,
+    `候选人姓名：${parsed.candidateName || '待识别'}`,
+    `个人标题/当前职位：${parsed.headline || '待核实'}`,
+    `地点：${parsed.location || '待核实'}`,
+    '',
+    '【联系方式】',
+    arr(parsed.contact).join('\n') || '待核实',
+    '',
+    '【语言】',
+    arr(parsed.languages).join('\n') || '待核实',
+    '',
+    '【教育经历】',
+    arr(parsed.education).join('\n') || '待核实',
+    '',
+    '【工作经历】',
+    Array.isArray(parsed.experience) ? parsed.experience.map((x, i) => `${i + 1}. ${x.title || ''}｜${x.company || ''}｜${x.period || ''}｜${x.location || ''}\n${x.description || ''}`).join('\n\n') : '待核实',
+    '',
+    '【技能/关键词】',
+    arr(parsed.skills).join('；') || '待核实',
+    '',
+    '【证书/奖项】',
+    arr(parsed.certifications).join('\n') || '待核实',
+    '',
+    '【项目/案例】',
+    arr(parsed.projects).join('\n') || '待核实',
+    '',
+    '【成果】',
+    arr(parsed.achievements).join('\n') || '待核实',
+    '',
+    '【关键依据】',
+    arr(parsed.sourceEvidence).join('\n') || '待核实',
+    '',
+    '【待人工核实】',
+    arr(parsed.uncertainFields).join('\n') || '无',
+    '',
+    '【整理版候选人资料】',
+    normalizedResumeText
+  ].join('\n');
+
+  const usage = normalizeUsage(aiResult.usage);
+
+  return {
+    canceled: false,
+    filenames,
+    imageCount: imageFiles.length,
+    textFileCount: files.length - imageFiles.length,
+    ocrResults,
+    warnings,
+    extracted: parsed,
+    text: cleanText(readable),
+    charCount: cleanText(readable).length,
+    extractionUsage: usage,
+    model: aiResult.data.model || modelConfig.id,
+    modelLabel: modelConfig.label,
+    pipeline: '文本通道 + 图片OCR通道 + DeepSeek资料整理'
+  };
 });
 
 ipcMain.handle('leaderboard:load', () => readJson('leaderboard.json', []));
@@ -858,6 +1166,11 @@ ipcMain.handle('ai:analyze', async (event, payload) => {
   const data = JSON.parse(raw);
   const content = data.choices?.[0]?.message?.content || '';
   const parsed = parseModelJson(content);
+
+  const extractionUsage = normalizeUsage(payload.preExtractionUsage || {});
+  const scoringUsage = normalizeUsage(data.usage || {});
+  const combinedUsage = mergeUsage(extractionUsage, scoringUsage);
+
   return normalizeResult({
     ...parsed,
     model: data.model || modelConfig.id,
@@ -865,6 +1178,11 @@ ipcMain.handle('ai:analyze', async (event, payload) => {
     thinkingMode: modelConfig.thinking || '',
     strictnessLevel: strictnessConfig.level,
     strictnessLabel: strictnessConfig.label,
-    usage: data.usage || {}
+    extractionUsage,
+    scoringUsage,
+    usage: combinedUsage,
+    tokenUsageNote: extractionUsage.totalTokens > 0
+      ? '总令牌已合并：候选人资料AI预提取 + 岗位匹配深度评分。'
+      : '总令牌为岗位匹配深度评分消耗。'
   }, passLine);
 });

@@ -1,7 +1,7 @@
 {
   "name": "resume-ai-screener-electron",
-  "version": "1.0.19",
-  "description": "本地简历岗位匹配评分系统：重新校准置信度规则，区分匹配分与证据置信度，避免证据充分时置信度过低。",
+  "version": "1.0.24",
+  "description": "本地简历岗位匹配评分系统：完整回归自检版，覆盖历史所有已知问题。",
   "main": "main.js",
   "author": "Resume AI Screener",
   "license": "MIT",
@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "mammoth": "^1.8.0",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "tesseract.js": "^6.0.0"
   },
   "devDependencies": {
     "electron": "^33.2.1",

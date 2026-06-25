@@ -1,0 +1,41 @@
+简历岗位匹配评分系统 v1.0.24 完整回归自检报告
+
+一、本次自检范围
+本次针对过去出现过或用户重点反馈过的所有问题进行静态代码回归自检，包括：按钮点击无反应、模型选择为空、PDF读取失败、path.常驻name误替换、项目管理、危险操作二次确认、通用岗位模板、证据置信度、排行榜严格度隔离、排行榜Token隐藏、双通道OCR预提取、Token合并、GitHub Actions打包配置等。
+
+二、自检结果
+- JS语法：main.js：通过；
+- JS语法：src/main/main.js：通过；
+- JS语法：src/main/preload.js：通过；
+- JS语法：src/renderer/renderer.js：通过；
+- HTML ID 与前端调用：通过；[]
+- 按钮绑定：通过；[]
+- IPC接口对应：通过；[]
+- 历史误替换残留：通过；{'path.常驻name': 0, 'get深度求索Models': 0, 'export排行榜表格': 0, 'total令牌s': 0, 'prompt令牌s': 0, '兼容兼容': 0, 'undefined is not': 0, 'function undefined': 0, 'async async function': 0}
+- PDF/Word/TXT读取：通过；通过
+- 模型选择非空兜底：通过；通过
+- resetLeaderboardFilters：通过；通过
+- 危险操作二次确认：通过；通过
+- 默认岗位无明确指向：通过；通过
+- 证据置信度校准：通过；通过
+- 严格度隔离排行榜：通过；通过
+- 排行榜分页：通过；通过
+- 排行榜不显示单人Token：通过；通过
+- 检查结果折叠：通过；通过
+- Token合并：通过；通过
+- 双通道预提取：通过；通过
+- 图片最多9张限制：通过；通过
+- DeepSeek不直接接收图片：通过；通过
+- tesseract依赖：通过；通过
+- GitHub Actions：通过；通过
+- 版本号：通过；通过
+
+三、仍需真实安装后人工测试的项目
+1. GitHub Actions 是否成功安装 tesseract.js 并完成 Windows 打包。
+2. 安装后的软件是否能正常打开并显示 v1.0.24。
+3. OCR 对真实截图的识别质量，尤其是小字、模糊截图、复杂背景截图。
+4. DeepSeek API Key、网络和账户余额是否可用。
+5. 实际上传 PDF / Word / TXT / PNG / JPG 后是否能完整走通。
+
+四、结论
+静态代码回归自检全部通过。未发现过去出现过的 path.常驻name、模型选择为空、按钮函数缺失、IPC缺失、排行榜严格度混排、排行榜显示单人Token等问题。

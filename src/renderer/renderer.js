@@ -4,6 +4,17 @@ let deepseekModels = [];
 let projects = [];
 let activeProjectId = '';
 let rankCurrentPage = 1;
+let preExtractionContext = null;
+
+
+const FALLBACK_MODELS = [
+  { id: 'deepseek-chat', label: '旧版对话模型｜兼容快速模式', thinking: '', note: '兼容模型，适合普通批量初筛' },
+  { id: 'deepseek-reasoner', label: '旧版推理模型｜兼容推理模式', thinking: '', note: '兼容推理模型，适合重点候选人复核' },
+  { id: 'deepseek-v4-flash', label: '深度求索第四代极速｜严谨推理', thinking: 'enabled', note: '默认推荐的严谨模式，适合重点候选人复核' },
+  { id: 'deepseek-v4-flash', label: '深度求索第四代极速｜快速评分', thinking: 'disabled', note: '速度快、成本低，适合批量初筛' },
+  { id: 'deepseek-v4-pro', label: '深度求索第四代专业｜高质量推理', thinking: 'enabled', note: '更严谨但更慢、更贵' },
+  { id: 'deepseek-v4-pro', label: '深度求索第四代专业｜高质量评分', thinking: 'disabled', note: '质量更高、成本更高' }
+];
 
 const STRICTNESS_TEXT = {
   1: {
@@ -69,6 +80,7 @@ function bindEvents() {
   document.querySelectorAll('[data-add]').forEach(btn => btn.onclick = () => addRequirement(btn.dataset.add));
 
   $('selectResumeBtn').onclick = selectAndParseResume;
+  $('extractProfileBtn').onclick = selectAndExtractProfile;
   $('analyzeBtn').onclick = analyze;
   $('fillNotesBtn').onclick = fillNotes;
   $('addCurrentToRankBtn').onclick = () => currentResult && addToLeaderboard(currentResult, true);
@@ -78,6 +90,7 @@ function bindEvents() {
   $('resetRankFilterBtn').onclick = resetLeaderboardFilters;
   $('rankJobFilter').onchange = () => { rankCurrentPage = 1; renderLeaderboard(); };
   $('rankCategoryFilter').onchange = () => { rankCurrentPage = 1; renderLeaderboard(); };
+  $('rankStrictnessFilter').onchange = () => { rankCurrentPage = 1; renderLeaderboard(); };
   $('rankKeywordFilter').oninput = () => { rankCurrentPage = 1; renderLeaderboard(); };
   $('rankThisWeekOnly').onchange = () => { rankCurrentPage = 1; renderLeaderboard(); };
   $('rankPageSize').onchange = () => { rankCurrentPage = 1; renderLeaderboard(); };
@@ -92,12 +105,17 @@ async function initApp() {
   await initModelSelect();
 
   const key = await window.resumeApp.loadKey();
-  if (key?.modelKey) {
+  if (key?.modelKey && [...$('modelSelect').options].some(o => o.value === key.modelKey)) {
     $('modelSelect').value = key.modelKey;
+    updateModelInfo();
+  } else {
     updateModelInfo();
   }
   if (key?.strictnessLevel) {
     $('strictnessLevel').value = key.strictnessLevel;
+  }
+  if ($('rankStrictnessFilter')) {
+    $('rankStrictnessFilter').value = String($('strictnessLevel').value || 3);
   }
   updateStrictnessInfo();
   if (key?.apiKey) {
@@ -350,31 +368,61 @@ async function clearKey() {
 }
 
 async function initModelSelect() {
-  try {
-    deepseekModels = await window.resumeApp.getDeepSeekModels();
-  } catch {
-    deepseekModels = [
-      { id: 'deepseek-v4-flash', label: '深度求索第四代极速｜严谨推理', thinking: 'enabled', note: '默认推荐' },
-      { id: 'deepseek-v4-flash', label: '深度求索第四代极速｜快速评分', thinking: 'disabled', note: '适合批量初筛' },
-      { id: 'deepseek-v4-pro', label: '深度求索第四代专业｜高质量推理', thinking: 'enabled', note: '更慢、更贵' },
-      { id: 'deepseek-chat', label: '旧版对话模型｜兼容快速模式', thinking: '', note: '旧兼容模型名' },
-      { id: 'deepseek-reasoner', label: '旧版推理模型｜兼容推理模式', thinking: '', note: '旧兼容模型名' }
-    ];
-  }
   const select = $('modelSelect');
+  if (!select) return;
+
+  try {
+    const remoteModels = await window.resumeApp.getDeepSeekModels();
+    deepseekModels = Array.isArray(remoteModels) && remoteModels.length ? remoteModels : FALLBACK_MODELS;
+  } catch (err) {
+    console.warn('读取模型列表失败，使用本地兜底模型列表：', err);
+    deepseekModels = FALLBACK_MODELS;
+  }
+
+  if (!Array.isArray(deepseekModels) || !deepseekModels.length) {
+    deepseekModels = FALLBACK_MODELS;
+  }
+
   select.innerHTML = '';
   deepseekModels.forEach(m => {
     const opt = document.createElement('option');
     opt.value = `${m.id}:${m.thinking || ''}`;
-    opt.textContent = m.label;
+    opt.textContent = m.label || m.id;
     select.appendChild(opt);
   });
-  select.value = 'deepseek-v4-flash:enabled';
+
+  if (!select.options.length) {
+    FALLBACK_MODELS.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = `${m.id}:${m.thinking || ''}`;
+      opt.textContent = m.label || m.id;
+      select.appendChild(opt);
+    });
+    deepseekModels = FALLBACK_MODELS;
+  }
+
+  const defaultKey = 'deepseek-reasoner:';
+  if ([...select.options].some(o => o.value === defaultKey)) {
+    select.value = defaultKey;
+  } else {
+    select.selectedIndex = 0;
+  }
   updateModelInfo();
 }
 
 function updateModelInfo() {
-  const key = $('modelSelect').value;
+  const select = $('modelSelect');
+  if (!select) return;
+  if (!select.options.length) {
+    deepseekModels = FALLBACK_MODELS;
+    FALLBACK_MODELS.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = `${m.id}:${m.thinking || ''}`;
+      opt.textContent = m.label || m.id;
+      select.appendChild(opt);
+    });
+  }
+  const key = select.value;
   const m = deepseekModels.find(x => `${x.id}:${x.thinking || ''}` === key);
   const modeText = m?.thinking === 'enabled' ? '开启推理' : (m?.thinking === 'disabled' ? '关闭推理' : '兼容模式');
   $('modelInfo').textContent = m ? `${m.note}。当前模式：${modeText}` : '当前模型配置将随评分请求一起发送。';
@@ -530,12 +578,60 @@ async function selectAndParseResume() {
   try {
     const data = await window.resumeApp.selectAndParseResume();
     if (data?.canceled) return setStatus('resumeStatus', '已取消选择。');
+    preExtractionContext = null;
     $('resumeText').value = data.text || '';
     setStatus('resumeStatus', `读取完成：${data.filename}，共 ${data.charCount} 个字符。`);
     if (data.warning) show('resumeWarning', data.warning);
   } catch (err) {
     setStatus('resumeStatus', '');
     show('resumeError', err.message || String(err));
+  }
+}
+
+async function selectAndExtractProfile() {
+  hideMessages(['resumeWarning', 'resumeError']);
+  const apiKey = value('apiKey');
+  if (!apiKey) {
+    show('resumeError', '请先输入并保存接口密钥，再使用个人主页PDF/截图AI预提取。');
+    return;
+  }
+
+  $('extractProfileBtn').disabled = true;
+  setStatus('resumeStatus', '正在进行双通道预提取：文本资料直接读取，图片截图先本地OCR，再交给DeepSeek整理……图片最多9张。');
+
+  try {
+    const data = await window.resumeApp.selectAndExtractProfile({
+      apiKey,
+      modelKey: value('modelSelect'),
+      strictnessLevel: Number(value('strictnessLevel') || 3)
+    });
+    if (data?.canceled) return setStatus('resumeStatus', '已取消选择。');
+
+    preExtractionContext = {
+      usage: data.extractionUsage || {},
+      filenames: data.filenames || [],
+      imageCount: data.imageCount || 0,
+      textFileCount: data.textFileCount || 0,
+      modelLabel: data.modelLabel || data.model || ''
+    };
+
+    $('resumeText').value = data.text || '';
+    const u = data.extractionUsage || {};
+    setStatus(
+      'resumeStatus',
+      `双通道预提取完成：${(data.filenames || []).length} 个文件，其中图片 ${data.imageCount || 0} 张；整理后 ${data.charCount || 0} 个字符；DeepSeek整理消耗 ${u.totalTokens || 0} 令牌。下一步评分会合并统计这部分令牌。`
+    );
+    if (Array.isArray(data.warnings) && data.warnings.length) {
+      show('resumeWarning', data.warnings.join('；'));
+    } else if (data.imageCount) {
+      show('resumeWarning', '已对图片/主页资料做双通道预提取：图片先本地OCR转文字，再由DeepSeek整理。OCR可能有误，最终判断仍需人工复核。');
+    }
+  } catch (err) {
+    preExtractionContext = null;
+    setStatus('resumeStatus', '');
+    show('resumeError', err.message || String(err));
+  } finally {
+    $('extractProfileBtn').disabled = false;
   }
 }
 
@@ -546,7 +642,7 @@ async function analyze() {
   if (!value('resumeText')) return show('analyzeError', '请先读取或粘贴候选人简历。');
 
   $('analyzeBtn').disabled = true;
-  setStatus('analyzeStatus', '人工智能正在评估简历，并提取原文依据、置信度与风险项……');
+  setStatus('analyzeStatus', '人工智能正在进行岗位深度评分，并合并统计预提取与评分阶段Token……');
 
   try {
     const result = await window.resumeApp.analyze({
@@ -556,6 +652,8 @@ async function analyze() {
       passLine: Number(value('passLine') || 75),
       extraNotes: value('extraNotes'),
       resumeText: value('resumeText'),
+      preExtractionUsage: preExtractionContext?.usage || {},
+      preExtractionMeta: preExtractionContext || null,
       ...standard
     });
     currentResult = result;
@@ -586,13 +684,14 @@ function renderResult(data) {
     年龄依据：<span class="muted-line">${escapeHtml(ageBasis)}</span><br>
     综合评分：<strong>${score}/100</strong>；推进建议：<strong>${escapeHtml(data.recommendation)}</strong><br>
     使用模型：<strong>${escapeHtml(data.modelLabel || data.model || '深度求索')}</strong>；严格度：<strong>${escapeHtml(data.strictnessLabel || (data.strictnessLevel ? data.strictnessLevel + '度' : '3度'))}</strong><br>
+    ${data.tokenUsageNote ? `<br>Token统计：<span class="muted-line">${escapeHtml(data.tokenUsageNote)}</span>` : ''}<br>
     ${escapeHtml(data.summary || '')}`;
 
   $('confidenceText').textContent = `${data.confidence || 0}%`;
   $('uncertaintyReason').textContent = data.dataQuality?.uncertaintyReason || '证据越充分，置信度越高。';
 
   const b = data.scoreBreakdown || {};
-  setText('m销售', b.sales); setText('mIndustry', b.industry); setText('mAccount', b.account); setText('m成交', b.成交);
+  setText('mSales', b.sales); setText('mIndustry', b.industry); setText('mAccount', b.account); setText('mClosing', b.成交);
   setText('mLocation', b.location); setText('mLanguage', b.language); setText('mBonus', b.bonus); setText('mOverall', b.overall);
 
   const u = data.usage || {};
@@ -600,6 +699,8 @@ function renderResult(data) {
   setText('promptTokens', u.promptTokens || 0);
   setText('completionTokens', u.completionTokens || 0);
   setText('totalTokens', u.totalTokens || 0);
+  setText('extractTokens', data.extractionUsage?.totalTokens || 0);
+  setText('scoringTokens', data.scoringUsage?.totalTokens || ((u.totalTokens || 0) - (data.extractionUsage?.totalTokens || 0)));
   setText('cacheHitTokens', u.cacheHitTokens || 0);
   setText('cacheMissTokens', u.cacheMissTokens || 0);
   setText('reasoningTokens', u.reasoningTokens || 0);
@@ -687,7 +788,10 @@ function migrateLeaderboard(items) {
     createdAt: x.createdAt || new Date().toISOString(),
     weekKey: x.weekKey || getWeekKey(x.createdAt || x.time || new Date()),
     strictnessLevel: x.strictnessLevel || 3,
-    strictnessLabel: x.strictnessLabel || '3度｜标准推荐'
+    strictnessLabel: x.strictnessLabel || '3度｜标准推荐',
+    totalTokens: Number(x.totalTokens || 0),
+    extractionTokens: Number(x.extractionTokens || 0),
+    scoringTokens: Number(x.scoringTokens || 0)
   }));
 }
 
@@ -739,6 +843,8 @@ async function addToLeaderboard(data, showAlert) {
     strictnessLevel: data.strictnessLevel || Number(value('strictnessLevel') || 3),
     strictnessLabel: data.strictnessLabel || (STRICTNESS_TEXT[Number(value('strictnessLevel') || 3)]?.label || '3度｜标准推荐'),
     totalTokens: Number(data.usage?.totalTokens || 0),
+    extractionTokens: Number(data.extractionUsage?.totalTokens || 0),
+    scoringTokens: Number(data.scoringUsage?.totalTokens || 0),
     summary: data.summary || '',
     jobTitle: standard.jobTitle || '未命名岗位',
     category: inferCategory(data),
@@ -771,18 +877,40 @@ function refreshLeaderboardFilters() {
   if (jobs.includes(current)) jobSelect.value = current;
 }
 
+function resetLeaderboardFilters() {
+  if ($('rankJobFilter')) $('rankJobFilter').value = '';
+  if ($('rankCategoryFilter')) $('rankCategoryFilter').value = '';
+  if ($('rankKeywordFilter')) $('rankKeywordFilter').value = '';
+  if ($('rankThisWeekOnly')) $('rankThisWeekOnly').checked = false;
+  if ($('rankStrictnessFilter')) $('rankStrictnessFilter').value = String(value('strictnessLevel') || 3);
+  if ($('rankPageSize')) $('rankPageSize').value = '50';
+  rankCurrentPage = 1;
+  renderLeaderboard();
+}
+
+function strictnessName(level) {
+  const key = Number(level || 3);
+  return STRICTNESS_TEXT[key]?.label || `${key}度`;
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/"/g, '&quot;');
+}
+
 function getFilteredLeaderboard() {
   const job = $('rankJobFilter')?.value || '';
   const category = $('rankCategoryFilter')?.value || '';
+  const strictness = String($('rankStrictnessFilter')?.value || value('strictnessLevel') || '3');
   const keyword = ($('rankKeywordFilter')?.value || '').trim().toLowerCase();
   const thisWeek = Boolean($('rankThisWeekOnly')?.checked);
 
   return leaderboard.filter(x => {
+    if (String(x.strictnessLevel || 3) !== strictness) return false;
     if (job && (x.jobTitle || '未命名岗位') !== job) return false;
     if (category && (x.category || '') !== category) return false;
     if (thisWeek && !isCurrentWeek(x.createdAt || x.time)) return false;
     if (keyword) {
-      const hay = `${x.candidateName || ''} ${x.candidateAge || ''} ${x.ageInferenceBasis || ''} ${x.summary || ''} ${x.note || ''} ${x.jobTitle || ''} ${x.category || ''}`.toLowerCase();
+      const hay = `${x.candidateName || ''} ${x.candidateAge || ''} ${x.ageInferenceBasis || ''} ${x.summary || ''} ${x.note || ''} ${x.jobTitle || ''} ${x.category || ''} ${x.strictnessLabel || ''}`.toLowerCase();
       if (!hay.includes(keyword)) return false;
     }
     return true;
@@ -796,6 +924,10 @@ function renderLeaderboard() {
 
   const list = getFilteredLeaderboard();
   const total = leaderboard.length;
+  const selectedStrictness = String($('rankStrictnessFilter')?.value || value('strictnessLevel') || '3');
+  const selectedStrictnessName = strictnessName(selectedStrictness);
+  const sameStrictnessTotal = leaderboard.filter(x => String(x.strictnessLevel || 3) === selectedStrictness).length;
+
   const pageSize = Math.max(1, Number(value('rankPageSize') || 50));
   const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
   rankCurrentPage = Math.min(Math.max(1, rankCurrentPage), totalPages);
@@ -808,12 +940,12 @@ function renderLeaderboard() {
     const job = $('rankJobFilter')?.value || '全部岗位';
     const category = $('rankCategoryFilter')?.value || '全部归类';
     const week = $('rankThisWeekOnly')?.checked ? '仅本周' : '全部时间';
-    summary.textContent = `当前项目筛选出 ${list.length} / ${total} 位候选人｜第 ${rankCurrentPage} / ${totalPages} 页｜岗位：${job}｜归类：${category}｜时间：${week}`;
+    summary.innerHTML = `当前只比较 <strong>${escapeHtml(selectedStrictnessName)}</strong> 下的分数：筛选出 <strong>${list.length}</strong> / ${sameStrictnessTotal} 位候选人｜第 ${rankCurrentPage} / ${totalPages} 页｜岗位：${escapeHtml(job)}｜归类：${escapeHtml(category)}｜时间：${escapeHtml(week)}。不同严格度评分不混排。`;
   }
 
   const toggleHint = $('rankToggleHint');
   if (toggleHint) {
-    toggleHint.textContent = `当前筛选 ${list.length} / ${total} 位｜第 ${rankCurrentPage} / ${totalPages} 页`;
+    toggleHint.textContent = `${selectedStrictnessName}｜当前筛选 ${list.length} / ${sameStrictnessTotal} 位`;
   }
 
   const pageInfo = $('rankPageInfo');
@@ -825,25 +957,43 @@ function renderLeaderboard() {
   if (next) next.disabled = rankCurrentPage >= totalPages;
 
   if (!pageList.length) {
-    body.innerHTML = '<tr><td colspan="10">当前项目暂无符合筛选条件的候选人</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" class="empty-rank-cell">当前严格度下暂无符合筛选条件的候选人。请切换严格度，或把候选人用当前严格度重新评分后加入排行榜。</td></tr>';
     return;
   }
 
   pageList.forEach((x, index) => {
+    const rankNo = startIndex + index + 1;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><span class="rank-num">${startIndex + index + 1}</span></td>
-      <td><strong>${escapeHtml(x.candidateName)}</strong><br><span class="muted-line">大致年龄：${escapeHtml(x.candidateAge || '待推断')}${x.ageConfidence ? `｜年龄置信度 ${Number(x.ageConfidence || 0)}%` : ''}</span><br><span class="muted-line">${escapeHtml(x.summary || '')}</span></td>
-      <td><strong>${x.score}</strong></td>
-      <td><strong>${Number(x.confidence || 0)}%</strong></td>
-      <td><span class="job-pill">${escapeHtml(x.jobTitle || '未命名岗位')}</span></td>
+    tr.innerHTML = `<td>
+        <span class="rank-num ${rankNo <= 3 ? 'top' : ''}">${rankNo}</span>
+      </td>
+      <td>
+        <div class="candidate-cell">
+          <strong>${escapeHtml(x.candidateName || '待识别')}</strong>
+          <span>大致年龄：${escapeHtml(x.candidateAge || '待推断')}${x.ageConfidence ? `｜年龄置信度 ${Number(x.ageConfidence || 0)}%` : ''}</span>
+          <small title="${escapeAttr(x.summary || '')}">${escapeHtml(x.summary || '')}</small>
+        </div>
+      </td>
+      <td><span class="score-pill">${Number(x.score || 0)}</span></td>
+      <td><span class="confidence-pill">${Number(x.confidence || 0)}%</span></td>
+      <td>
+        <div class="job-strict-cell">
+          <span class="job-pill">${escapeHtml(x.jobTitle || '未命名岗位')}</span>
+          <span class="strict-pill">${escapeHtml(x.strictnessLabel || strictnessName(x.strictnessLevel || 3))}</span>
+        </div>
+      </td>
       <td>
         <select class="rank-select" data-category="${x.id}">
           ${['优先推进','建议推进','待复核','作为储备','不建议推进','已联系','已面试','已淘汰'].map(c => `<option value="${c}" ${String(x.category || '') === c ? 'selected' : ''}>${c}</option>`).join('')}
         </select>
       </td>
-      <td>${escapeHtml(x.model || '-')}<br><span class="muted-line">${escapeHtml(x.strictnessLabel || '3度｜标准推荐')}</span><br><span class="muted-line">${Number(x.totalTokens || 0)} 令牌</span></td>
-      <td><textarea class="rank-note" data-note="${x.id}" placeholder="添加候选人备注、沟通进展、风险说明……">${escapeHtml(x.note || '')}</textarea></td>
-      <td>${escapeHtml(x.time || '')}<br><span class="muted-line">${escapeHtml(x.weekKey || '')}</span></td>
+      <td>
+        <div class="model-cell">
+          <span>${escapeHtml(x.model || '-')}</span>
+        </div>
+      </td>
+      <td><textarea class="rank-note" data-note="${x.id}" placeholder="候选人备注、沟通进展、风险说明……">${escapeHtml(x.note || '')}</textarea></td>
+      <td><span class="time-cell">${escapeHtml(x.time || '')}</span><small class="muted-line">${escapeHtml(x.weekKey || '')}</small></td>
       <td><button class="danger small" data-del="${x.id}">删除</button></td>`;
     body.appendChild(tr);
   });
@@ -920,7 +1070,7 @@ async function exportCSV() {
   const list = getFilteredLeaderboard();
   if (!list.length) return alert('当前项目的筛选结果为空。');
   const rows = [
-    ['排名','项目','候选人','大致年龄','年龄推断置信度','年龄推断依据','岗位','归类','备注','分数','置信度','模型','严格度','令牌用量','等级','建议','周次','时间','摘要'],
+    ['排名','项目','候选人','大致年龄','年龄推断置信度','年龄推断依据','岗位','归类','备注','分数','证据置信度','模型','严格度','总令牌','预提取令牌','深度评分令牌','等级','建议','周次','时间','摘要'],
     ...list.map((x, i) => [
       i + 1,
       activeProject()?.name || '',
@@ -936,6 +1086,8 @@ async function exportCSV() {
       x.model || '',
       x.strictnessLabel || '',
       x.totalTokens || 0,
+      x.extractionTokens || 0,
+      x.scoringTokens || 0,
       x.level || '',
       x.recommendation || '',
       x.weekKey || '',
@@ -962,7 +1114,7 @@ function sanitizeFilename(name) {
 async function exportAllProjectsCSV() {
   await persistProjects();
   if (!projects.length) return alert('暂无项目。');
-  const rows = [['项目','项目内排名','候选人','大致年龄','年龄推断置信度','年龄推断依据','岗位','归类','备注','分数','置信度','模型','严格度','令牌用量','等级','建议','周次','时间','摘要']];
+  const rows = [['项目','项目内排名','候选人','大致年龄','年龄推断置信度','年龄推断依据','岗位','归类','备注','分数','证据置信度','模型','严格度','总令牌','预提取令牌','深度评分令牌','等级','建议','周次','时间','摘要']];
   projects.forEach(project => {
     const items = migrateLeaderboard(project.leaderboard || []).sort((a, b) => b.score - a.score || b.confidence - a.confidence);
     items.forEach((x, i) => rows.push([
@@ -980,6 +1132,8 @@ async function exportAllProjectsCSV() {
       x.model || '',
       x.strictnessLabel || '',
       x.totalTokens || 0,
+      x.extractionTokens || 0,
+      x.scoringTokens || 0,
       x.level || '',
       x.recommendation || '',
       x.weekKey || '',

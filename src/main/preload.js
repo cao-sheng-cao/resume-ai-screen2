@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('resumeApp', {
   saveStandard: (standard) => ipcRenderer.invoke('standard:save', standard),
   clearStandard: () => ipcRenderer.invoke('standard:clear'),
   selectAndParseResume: () => ipcRenderer.invoke('resume:select-and-parse'),
+  selectAndExtractProfile: (payload) => ipcRenderer.invoke('profile:select-and-extract', payload),
   analyze: (payload) => ipcRenderer.invoke('ai:analyze', payload),
   loadLeaderboard: () => ipcRenderer.invoke('leaderboard:load'),
   saveLeaderboard: (items) => ipcRenderer.invoke('leaderboard:save', items),

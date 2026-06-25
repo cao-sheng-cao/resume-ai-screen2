@@ -3,6 +3,7 @@ let leaderboard = [];
 let deepseekModels = [];
 let projects = [];
 let activeProjectId = '';
+let rankCurrentPage = 1;
 
 const STRICTNESS_TEXT = {
   1: {
@@ -18,7 +19,7 @@ const STRICTNESS_TEXT = {
   3: {
     label: '3度｜标准推荐',
     info: '默认推荐。人工智能严格按岗位标准和简历原文判断；没有明确证据不得给满分。',
-    example: '同一情况：候选人有云生态合作经验但没有直接云产品销售。3度会判为“云背景部分满足，直接云销售与 成交 待核实”。'
+    example: '同一情况：候选人有云生态合作经验但没有直接相关产品销售。3度会判为“云背景部分满足，直接云销售与 成交 待核实”。'
   },
   4: {
     label: '4度｜严格证据',
@@ -28,7 +29,7 @@ const STRICTNESS_TEXT = {
   5: {
     label: '5度｜极严格硬筛',
     info: '适合高价值岗位或终面前硬筛。人工智能只承认直接、明确、可验证的简历证据，模糊项倾向待核实/不满足。',
-    example: '同一情况：候选人没有明确写法语商务谈判、法国客户或云产品销售。5度不会推断满足，只会判为待核实或不满足。'
+    example: '同一情况：候选人没有明确写目标语言商务谈判、目标区域客户或相关产品销售。5度不会推断满足，只会判为待核实或不满足。'
   }
 };
 
@@ -60,6 +61,7 @@ function bindEvents() {
   $('openDataFolderBtn').onclick = () => window.resumeApp.openDataFolder();
   $('addProjectBtn').onclick = addProject;
   $('exportAllCsvBtn').onclick = exportAllProjectsCSV;
+  $('projectSearchInput').oninput = renderProjectList;
 
   $('restoreDefaultBtn').onclick = restoreDefaultStandard;
   $('saveStandardBtn').onclick = saveStandard;
@@ -74,10 +76,13 @@ function bindEvents() {
   $('exportCsvBtn').onclick = exportCSV;
   $('clearRankBtn').onclick = clearLeaderboard;
   $('resetRankFilterBtn').onclick = resetLeaderboardFilters;
-  $('rankJobFilter').onchange = renderLeaderboard;
-  $('rankCategoryFilter').onchange = renderLeaderboard;
-  $('rankKeywordFilter').oninput = renderLeaderboard;
-  $('rankThisWeekOnly').onchange = renderLeaderboard;
+  $('rankJobFilter').onchange = () => { rankCurrentPage = 1; renderLeaderboard(); };
+  $('rankCategoryFilter').onchange = () => { rankCurrentPage = 1; renderLeaderboard(); };
+  $('rankKeywordFilter').oninput = () => { rankCurrentPage = 1; renderLeaderboard(); };
+  $('rankThisWeekOnly').onchange = () => { rankCurrentPage = 1; renderLeaderboard(); };
+  $('rankPageSize').onchange = () => { rankCurrentPage = 1; renderLeaderboard(); };
+  $('rankPrevPageBtn').onclick = () => { rankCurrentPage = Math.max(1, rankCurrentPage - 1); renderLeaderboard(); };
+  $('rankNextPageBtn').onclick = () => { rankCurrentPage += 1; renderLeaderboard(); };
   $('exportBackupBtn').onclick = exportBackup;
   $('importBackupBtn').onclick = importBackup;
 }
@@ -177,8 +182,15 @@ function renderProjectList() {
   const box = $('projectList');
   if (!box) return;
   box.innerHTML = '';
+  const keyword = value('projectSearchInput').toLowerCase();
+  const visibleProjects = projects.filter(p => !keyword || String(p.name || '').toLowerCase().includes(keyword));
 
-  projects.forEach(p => {
+  if (!visibleProjects.length) {
+    box.innerHTML = '<div class="project-message" style="display:block;">没有找到匹配项目。</div>';
+    return;
+  }
+
+  visibleProjects.forEach(p => {
     const count = Array.isArray(p.leaderboard) ? p.leaderboard.length : 0;
     const item = document.createElement('div');
     item.className = `project-item ${p.id === activeProjectId ? 'active' : ''}`;
@@ -238,21 +250,16 @@ function renderProjectList() {
       return;
     }
 
-    if (btn.dataset.confirmDelete !== 'yes') {
-      btn.dataset.confirmDelete = 'yes';
-      btn.textContent = '再次点击删除';
-      setProjectMessage('再次点击删除按钮，会删除该项目及其项目内排行榜。', true);
-      setTimeout(() => {
-        if (btn.dataset.confirmDelete === 'yes') {
-          btn.dataset.confirmDelete = '';
-          btn.textContent = '删除';
-        }
-      }, 3500);
-      return;
-    }
-
     const p = projects.find(x => x.id === btn.dataset.removeProject);
     if (!p) return;
+
+    const ok = await confirmDanger({
+      title: '确认删除项目',
+      message: `你即将删除项目“${p.name}”。该项目内的候选人排行榜、备注、归类和评分记录都会被删除。`,
+      tip: '该操作不可撤销。建议删除前先导出完整备份，或导出全部项目排行榜。',
+      confirmText: '确认删除项目'
+    });
+    if (!ok) return;
 
     projects = projects.filter(x => x.id !== p.id);
     if (activeProjectId === p.id) activeProjectId = projects[0].id;
@@ -330,7 +337,13 @@ async function loadKey() {
 
 async function clearKey() {
   hideMessages(['keySuccess', 'keyError']);
-  if (!confirm('确定清除已保存的接口密钥吗？')) return;
+  const ok = await confirmDanger({
+    title: '确认清除接口密钥',
+    message: '清除后，当前电脑将不再保存接口密钥。后续评分需要重新输入。',
+    tip: '该操作不会删除候选人和项目，但会影响后续接口调用。',
+    confirmText: '确认清除'
+  });
+  if (!ok) return;
   await window.resumeApp.clearKey();
   $('apiKey').value = '';
   show('keySuccess', '已清除接口密钥。');
@@ -452,8 +465,8 @@ function appendEditableRow(containerId, text = '') {
   input.placeholder = containerId === 'mustHaveList'
     ? '硬条件示例：必须有明确 B2B 销售 经历，且简历中体现 销售指标/revenue/成交。'
     : containerId === 'bonusList'
-      ? '具体加分示例：有 AWS/Azure/GCP/腾讯云等云厂战略客户销售经验优先。'
-      : '强风险示例：不会法语且无法支持法国客户商务沟通。';
+      ? '具体加分示例：有 AWS/Azure/GCP/某某公司等目标行业公司战略客户销售经验优先。'
+      : '强风险示例：不会目标语言且无法支持目标区域客户商务沟通。';
   const del = document.createElement('button');
   del.className = 'danger small';
   del.textContent = '删除';
@@ -493,7 +506,13 @@ async function loadSavedStandard() {
 }
 
 async function restoreDefaultStandard() {
-  if (!confirm('确定恢复默认岗位标准吗？当前项目内的岗位标准会被覆盖。')) return;
+  const ok = await confirmDanger({
+    title: '确认恢复默认岗位模板',
+    message: '当前项目内的岗位名称、岗位说明、必要项、加分项和一票否决项会被默认模板覆盖。',
+    tip: '建议在恢复前先导出完整备份，或确认当前岗位标准不再需要。',
+    confirmText: '确认恢复'
+  });
+  if (!ok) return;
   const standard = await window.resumeApp.getDefaultStandard();
   setStandardToForm(standard);
   const p = activeProject();
@@ -774,25 +793,48 @@ function renderLeaderboard() {
   refreshLeaderboardFilters();
   const body = $('leaderboardBody');
   body.innerHTML = '';
+
   const list = getFilteredLeaderboard();
   const total = leaderboard.length;
+  const pageSize = Math.max(1, Number(value('rankPageSize') || 50));
+  const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
+  rankCurrentPage = Math.min(Math.max(1, rankCurrentPage), totalPages);
+
+  const startIndex = (rankCurrentPage - 1) * pageSize;
+  const pageList = list.slice(startIndex, startIndex + pageSize);
+
   const summary = $('rankSummary');
   if (summary) {
     const job = $('rankJobFilter')?.value || '全部岗位';
     const category = $('rankCategoryFilter')?.value || '全部归类';
     const week = $('rankThisWeekOnly')?.checked ? '仅本周' : '全部时间';
-    summary.textContent = `当前项目显示 ${list.length} / ${total} 位候选人｜岗位：${job}｜归类：${category}｜时间：${week}`;
+    summary.textContent = `当前项目筛选出 ${list.length} / ${total} 位候选人｜第 ${rankCurrentPage} / ${totalPages} 页｜岗位：${job}｜归类：${category}｜时间：${week}`;
   }
+
   const toggleHint = $('rankToggleHint');
   if (toggleHint) {
-    toggleHint.textContent = `当前显示 ${list.length} / ${total} 位候选人`;
+    toggleHint.textContent = `当前筛选 ${list.length} / ${total} 位｜第 ${rankCurrentPage} / ${totalPages} 页`;
   }
-  if (!list.length) { body.innerHTML = '<tr><td colspan="10">当前项目暂无符合筛选条件的候选人</td></tr>'; return; }
-  list.forEach((x, index) => {
+
+  const pageInfo = $('rankPageInfo');
+  if (pageInfo) pageInfo.textContent = `第 ${rankCurrentPage} / ${totalPages} 页｜每页 ${pageSize} 人`;
+
+  const prev = $('rankPrevPageBtn');
+  const next = $('rankNextPageBtn');
+  if (prev) prev.disabled = rankCurrentPage <= 1;
+  if (next) next.disabled = rankCurrentPage >= totalPages;
+
+  if (!pageList.length) {
+    body.innerHTML = '<tr><td colspan="10">当前项目暂无符合筛选条件的候选人</td></tr>';
+    return;
+  }
+
+  pageList.forEach((x, index) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><span class="rank-num">${index + 1}</span></td>
+    tr.innerHTML = `<td><span class="rank-num">${startIndex + index + 1}</span></td>
       <td><strong>${escapeHtml(x.candidateName)}</strong><br><span class="muted-line">大致年龄：${escapeHtml(x.candidateAge || '待推断')}${x.ageConfidence ? `｜年龄置信度 ${Number(x.ageConfidence || 0)}%` : ''}</span><br><span class="muted-line">${escapeHtml(x.summary || '')}</span></td>
-      <td><strong>${x.score}</strong><br><span class="muted-line">置信度 ${x.confidence}%</span></td>
+      <td><strong>${x.score}</strong></td>
+      <td><strong>${Number(x.confidence || 0)}%</strong></td>
       <td><span class="job-pill">${escapeHtml(x.jobTitle || '未命名岗位')}</span></td>
       <td>
         <select class="rank-select" data-category="${x.id}">
@@ -812,21 +854,33 @@ function renderLeaderboard() {
       item.category = select.value;
       await persistProjects();
       await window.resumeApp.saveLeaderboard(leaderboard);
+      renderProjectList();
       renderLeaderboard();
     }
   });
 
-  body.querySelectorAll('[data-note]').forEach(area => area.onchange = async () => {
-    const item = leaderboard.find(x => String(x.id) === String(area.dataset.note));
+  body.querySelectorAll('[data-note]').forEach(input => input.onchange = async () => {
+    const item = leaderboard.find(x => String(x.id) === String(input.dataset.note));
     if (item) {
-      item.note = area.value.trim();
+      item.note = input.value;
       await persistProjects();
       await window.resumeApp.saveLeaderboard(leaderboard);
+      renderProjectList();
       renderLeaderboard();
     }
   });
 
   body.querySelectorAll('[data-del]').forEach(btn => btn.onclick = async () => {
+    const item = leaderboard.find(x => String(x.id) === String(btn.dataset.del));
+    const name = item?.candidateName || '该候选人';
+    const ok = await confirmDanger({
+      title: '确认删除候选人记录',
+      message: `你即将从当前项目排行榜中删除“${name}”。`,
+      tip: '该操作会删除该候选人的评分记录、备注和归类。建议删除前先导出当前项目排行榜或完整备份。',
+      confirmText: '确认删除'
+    });
+    if (!ok) return;
+
     leaderboard = leaderboard.filter(x => String(x.id) !== String(btn.dataset.del));
     const p = activeProject();
     if (p) {
@@ -840,16 +894,14 @@ function renderLeaderboard() {
   });
 }
 
-function resetLeaderboardFilters() {
-  if ($('rankJobFilter')) $('rankJobFilter').value = '';
-  if ($('rankCategoryFilter')) $('rankCategoryFilter').value = '';
-  if ($('rankKeywordFilter')) $('rankKeywordFilter').value = '';
-  if ($('rankThisWeekOnly')) $('rankThisWeekOnly').checked = false;
-  renderLeaderboard();
-}
-
 async function clearLeaderboard() {
-  if (!confirm('确定清空当前项目的排行榜吗？')) return;
+  const ok = await confirmDanger({
+    title: '确认清空当前项目排行榜',
+    message: '这会删除当前项目内所有候选人评分记录、备注、归类和排行榜数据。',
+    tip: '该操作不可撤销。建议先导出完整备份或导出当前项目排行榜。',
+    confirmText: '确认清空'
+  });
+  if (!ok) return;
   leaderboard = [];
   const p = activeProject();
   if (p) {
@@ -953,7 +1005,12 @@ async function exportBackup() {
 
   const includeApiKey = Boolean($('includeApiKeyBackup')?.checked);
   if (includeApiKey) {
-    const ok = confirm('你选择了导出接口密钥。备份文件将包含敏感信息，请不要发给别人。确定继续吗？');
+    const ok = await confirmDanger({
+      title: '确认导出接口密钥',
+      message: '你选择了导出接口密钥，备份文件将包含敏感信息。',
+      tip: '不要把包含接口密钥的备份文件发给别人，否则可能造成接口额度被他人使用。',
+      confirmText: '确认导出'
+    });
     if (!ok) {
       setStatus('backupStatus', '已取消导出。');
       return;
@@ -982,7 +1039,12 @@ async function exportBackup() {
 async function importBackup() {
   hideMessages(['backupSuccess', 'backupError']);
 
-  const ok = confirm('导入备份会覆盖当前岗位标准、排行榜和部分本地设置。若备份文件不包含接口密钥，系统会保留当前电脑已保存的接口密钥。确定继续吗？');
+  const ok = await confirmDanger({
+    title: '确认导入完整备份',
+    message: '导入备份会覆盖当前岗位标准、全部项目、排行榜和部分本地设置。',
+    tip: '若备份文件不包含接口密钥，系统会保留当前电脑已保存的接口密钥。建议导入前先导出当前完整备份。',
+    confirmText: '确认导入'
+  });
   if (!ok) return;
 
   setStatus('backupStatus', '正在导入备份……');
@@ -1008,7 +1070,7 @@ async function importBackup() {
 }
 
 function fillNotes() {
-  $('extraNotes').value = '请严格判断候选人是否是真正销售，而不是售前或客户成功；法语、英语、巴黎或法国常驻是关键必要项；云厂背景、零售、电信、电商、游戏经验优先。所有判断必须引用简历原文依据，证据不足请写待核实。';
+  $('extraNotes').value = '请严格判断候选人是否满足岗位核心必要项；对语言、地点、行业、资质、年限等硬性条件必须引用简历原文证据；证据不足请写待核实，不要直接推断为满足。';
 }
 
 function renderList(id, items) {
@@ -1016,6 +1078,51 @@ function renderList(id, items) {
   const arr = Array.isArray(items) ? items : [];
   if (!arr.length) { const li = document.createElement('li'); li.textContent = '暂无'; ul.appendChild(li); return; }
   arr.forEach(item => { const li = document.createElement('li'); li.textContent = String(item); ul.appendChild(li); });
+}
+
+function confirmDanger({ title = '确认操作', message = '该操作可能造成数据变化。', tip = '确认后将继续执行。', confirmText = '确认继续', cancelText = '取消' } = {}) {
+  return new Promise(resolve => {
+    const mask = $('dangerConfirmMask');
+    const titleEl = $('dangerConfirmTitle');
+    const messageEl = $('dangerConfirmMessage');
+    const tipEl = $('dangerConfirmTip');
+    const okBtn = $('dangerConfirmOkBtn');
+    const cancelBtn = $('dangerConfirmCancelBtn');
+
+    if (!mask || !okBtn || !cancelBtn) {
+      resolve(window.confirm(message));
+      return;
+    }
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    tipEl.textContent = tip;
+    okBtn.textContent = confirmText;
+    cancelBtn.textContent = cancelText;
+
+    const close = (result) => {
+      mask.classList.remove('show');
+      mask.setAttribute('aria-hidden', 'true');
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      mask.onclick = null;
+      document.onkeydown = null;
+      resolve(result);
+    };
+
+    okBtn.onclick = () => close(true);
+    cancelBtn.onclick = () => close(false);
+    mask.onclick = (event) => {
+      if (event.target === mask) close(false);
+    };
+    document.onkeydown = (event) => {
+      if (event.key === 'Escape') close(false);
+    };
+
+    mask.classList.add('show');
+    mask.setAttribute('aria-hidden', 'false');
+    cancelBtn.focus();
+  });
 }
 
 function value(id) {

@@ -1373,3 +1373,139 @@ td {
   }
 }
 
+
+
+/* v1.0.16 承载量升级：项目搜索与排行榜分页 */
+.project-search {
+  height: 36px;
+  margin: 8px 0 10px;
+  border-radius: 14px;
+  font-size: 13px;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pagination-bar button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+#rankPageInfo {
+  min-width: 160px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .pagination-bar {
+    justify-content: stretch;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  #rankPageInfo {
+    min-width: 0;
+  }
+}
+
+
+
+/* v1.0.17 危险操作二次确认弹窗 */
+.danger-confirm-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(35, 35, 32, 0.36);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.danger-confirm-mask.show {
+  display: flex;
+}
+
+.danger-confirm-dialog {
+  width: min(480px, 100%);
+  border-radius: 28px;
+  border: 1px solid rgba(120, 120, 112, 0.22);
+  background: #fbfbfa;
+  box-shadow: 0 30px 80px rgba(30, 30, 28, 0.24);
+  padding: 24px;
+  animation: dangerConfirmIn 0.18s ease-out;
+}
+
+@keyframes dangerConfirmIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.danger-confirm-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+  color: #8b4a44;
+  background: #f4e7e4;
+  border: 1px solid #ead2ce;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.danger-confirm-content h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  letter-spacing: -0.04em;
+}
+
+.danger-confirm-content p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.68;
+  font-size: 14px;
+}
+
+.danger-confirm-tip {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border-radius: 16px;
+  background: #f2e9e7;
+  color: #8b4a44;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.danger-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+@media (max-width: 560px) {
+  .danger-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+

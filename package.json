@@ -1,7 +1,7 @@
 {
   "name": "resume-ai-screener-electron",
-  "version": "1.0.15",
-  "description": "本地简历岗位匹配评分系统：确认检查结果与排行榜均可折叠展开，并再次完成代码自检。",
+  "version": "1.0.19",
+  "description": "本地简历岗位匹配评分系统：重新校准置信度规则，区分匹配分与证据置信度，避免证据充分时置信度过低。",
   "main": "main.js",
   "author": "Resume AI Screener",
   "license": "MIT",

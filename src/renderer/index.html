@@ -23,9 +23,10 @@
           <span>项目</span>
         </div>
         <div class="project-create">
-          <input id="projectNameInput" placeholder="输入项目名称，例如：腾讯云法国销售岗" />
+          <input id="projectNameInput" placeholder="输入项目名称，例如：某某公司｜某某岗位" />
           <button class="primary mini" id="addProjectBtn">新建项目</button>
         </div>
+        <input id="projectSearchInput" class="project-search" placeholder="搜索项目名称" />
         <div class="project-list" id="projectList"></div>
         <button class="ghost full" id="exportAllCsvBtn">导出全部项目排行榜</button>
         <div class="project-message" id="projectMessage"></div>
@@ -107,7 +108,7 @@
           <div class="strictness-info" id="strictnessInfo"></div>
           <div class="strictness-examples">
             <strong>同一种情况参考：</strong>
-            <div id="strictnessExample">例如候选人有云生态合作经验，但没有明确写直接云产品销售：3度会判为“云背景部分满足，直接云销售与 成交能力待核实”。</div>
+            <div id="strictnessExample">例如候选人有云生态合作经验，但没有明确写直接相关产品核心经验：3度会判为“云背景部分满足，直接云核心经验与 关键能力能力待核实”。</div>
           </div>
           <div class="actions no-margin">
             <button class="ghost" id="saveStrictnessBtn">保存严格度</button>
@@ -124,13 +125,13 @@
             <h2>1. 岗位标准设置</h2>
             <p>提示已经写入输入框：必要项越硬越好，加分项越具体越好，评分规则越明确越可靠。</p>
           </div>
-          <button class="ghost" id="restoreDefaultBtn">恢复默认法国销售岗</button>
+          <button class="ghost" id="restoreDefaultBtn">恢复默认通用岗位模板</button>
         </div>
 
         <div class="two-grid">
           <div>
             <label>岗位名称</label>
-            <input id="jobTitle" placeholder="例如：腾讯云法国高级战略销售岗位" />
+            <input id="jobTitle" placeholder="例如：某某公司目标区域高级战略核心经验岗位" />
           </div>
           <div>
             <label>推进分数线</label>
@@ -139,10 +140,10 @@
         </div>
 
         <label>岗位说明</label>
-        <textarea id="positionOverview" placeholder="写清楚岗位负责什么、面向什么客户、核心目标是什么。例：负责法国/南欧战略客户开发、云业务收入增长、高价值合同谈判，重点行业为零售、电信、电商、游戏。"></textarea>
+        <textarea id="positionOverview" placeholder="写清楚岗位负责什么、面向什么客户、核心目标是什么。例：负责某区域重点客户开发、业务增长、重点项目推进与高价值合作。"></textarea>
 
         <label>评分规则</label>
-        <textarea id="scoringRule" placeholder="评分规则要明确。例：总分100分：企业销售20分；云/科技/数字化行业20分；战略大客户15分；主动开发与成交15分；法国/南欧市场10分；语言10分；目标行业5分；云厂/人工智能/电商加分5分。缺少销售、法语、法国常驻任一核心项时原则上不建议推进。"></textarea>
+        <textarea id="scoringRule" placeholder="评分规则要明确。例：总分100分：企业核心经验20分；目标行业/相关领域行业20分；战略客户/项目15分；主动开发与关键能力15分；目标区域市场10分；语言10分；目标行业5分；目标行业公司/人工智能/电商加分5分。缺少核心经验、目标语言、目标区域常驻任一核心项时原则上不建议推进。"></textarea>
 
         <div class="three-grid list-panels">
           <div class="standard-box">
@@ -192,10 +193,10 @@
         <div class="panel">
           <h2>3. 开始评分</h2>
           <label>额外备注</label>
-          <textarea id="extraNotes" placeholder="例如：请严格判断是否是真正销售；法语、英语、巴黎或法国常驻是关键必要项；云厂背景、零售、电信、电商、游戏经验优先。"></textarea>
+          <textarea id="extraNotes" placeholder="例如：请严格判断候选人是否满足岗位核心必要项；目标行业、目标市场、语言/地点/市场等硬性条件需要重点核实。"></textarea>
           <div class="actions">
             <button class="primary big" id="analyzeBtn">开始 人工智能评分</button>
-            <button class="ghost" id="fillNotesBtn">填入法国销售岗备注</button>
+            <button class="ghost" id="fillNotesBtn">填入通用评估备注</button>
           </div>
           <div class="quality-card">
             <h3>本地安全将输出</h3>
@@ -215,7 +216,7 @@
         <div class="section-title">
           <div>
             <h2>4. 评估结果</h2>
-            <p>评分用于初筛排序；候选人姓名与大致年龄会根据简历内容识别/推断，最终仍需人工复核。</p>
+            <p>评分用于判断匹配程度；证据置信度用于判断本次分析依据是否充分。候选人姓名与大致年龄会根据简历内容识别/推断，最终仍需人工复核。</p>
           </div>
           <button class="ghost" id="addCurrentToRankBtn">加入排行榜</button>
         </div>
@@ -224,18 +225,18 @@
           <div class="score-circle" id="scoreCircle"><span id="scoreText">0</span></div>
           <div class="summary" id="summaryBox"></div>
           <div class="confidence-card">
-            <span>置信度</span>
+            <span>证据置信度</span>
             <strong id="confidenceText">0%</strong>
-            <small id="uncertaintyReason">待生成</small>
+            <small id="uncertaintyReason">代表分析依据可靠度，不等于匹配分</small>
           </div>
         </div>
 
         <div class="metrics">
-          <div><span>销售</span><strong id="mSales">0</strong></div>
+          <div><span>核心经验</span><strong id="mSales">0</strong></div>
           <div><span>行业背景</span><strong id="mIndustry">0</strong></div>
-          <div><span>大客户</span><strong id="mAccount">0</strong></div>
-          <div><span>成交</span><strong id="mClosing">0</strong></div>
-          <div><span>地点</span><strong id="mLocation">0</strong></div>
+          <div><span>客户/项目</span><strong id="mAccount">0</strong></div>
+          <div><span>关键能力</span><strong id="mClosing">0</strong></div>
+          <div><span>地点/市场</span><strong id="mLocation">0</strong></div>
           <div><span>语言</span><strong id="mLanguage">0</strong></div>
           <div><span>加分</span><strong id="mBonus">0</strong></div>
           <div><span>综合</span><strong id="mOverall">0</strong></div>
@@ -332,6 +333,20 @@
                 <label>时间范围</label>
                 <label class="inline-check compact"><input id="rankThisWeekOnly" type="checkbox" /> <span>只看本周加入</span></label>
               </div>
+              <div>
+                <label>每页显示</label>
+                <select id="rankPageSize">
+                  <option value="25">25 人</option>
+                  <option value="50" selected>50 人</option>
+                  <option value="100">100 人</option>
+                  <option value="200">200 人</option>
+                </select>
+              </div>
+            </div>
+            <div class="pagination-bar">
+              <button class="ghost small" id="rankPrevPageBtn">上一页</button>
+              <span id="rankPageInfo">第 1 / 1 页</span>
+              <button class="ghost small" id="rankNextPageBtn">下一页</button>
             </div>
             <div class="rank-summary" id="rankSummary">当前显示当前项目内的候选人。</div>
           </div>
@@ -405,6 +420,23 @@
 
     </main>
   </div>
+
+
+  <div class="danger-confirm-mask" id="dangerConfirmMask" aria-hidden="true">
+    <div class="danger-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="dangerConfirmTitle">
+      <div class="danger-confirm-icon">!</div>
+      <div class="danger-confirm-content">
+        <h3 id="dangerConfirmTitle">确认操作</h3>
+        <p id="dangerConfirmMessage">该操作可能造成数据变化。</p>
+        <div class="danger-confirm-tip" id="dangerConfirmTip">确认后将继续执行。</div>
+      </div>
+      <div class="danger-confirm-actions">
+        <button class="ghost" id="dangerConfirmCancelBtn">取消</button>
+        <button class="danger" id="dangerConfirmOkBtn">确认继续</button>
+      </div>
+    </div>
+  </div>
+
 
   <script src="renderer.js"></script>
 </body>

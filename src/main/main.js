@@ -213,7 +213,7 @@ function buildStrictnessInstruction(level) {
 执行规则：${table[cfg.level]}
 
 同一种情况的参考判断：
-- 情况A：候选人有云生态/合作伙伴/云市场经验，但没有明确写“直接销售云产品并独立完成客户成交”。
+- 情况A：候选人有云生态/合作伙伴/云市场经验，但没有明确写“直接销售相关产品并独立完成客户成交”。
   1度：可视为较强相关，销售与云背景可给较高部分分；
   3度：云背景部分满足，直接云销售与成交能力需待核实；
   5度：不得视为直接云销售，云销售/成交能力只能给低部分分或待核实。
@@ -236,6 +236,66 @@ function getModelConfig(modelKey) {
   return DEEPSEEK_MODELS[1];
 }
 
+function hasExplicitEvidence(text) {
+  const s = String(text || '').trim();
+  if (!s) return false;
+  const weak = ['无明确证据', '无证据', '未体现', '未提及', '没有明确', '待核实', '无法判断'];
+  return !weak.some(x => s.includes(x));
+}
+
+function normalizeCheckConfidence(item) {
+  const status = String(item?.status || '待核实');
+  const evidence = String(item?.evidence || '');
+  let c = clamp(item?.confidence ?? 0, 0, 100);
+
+  if (hasExplicitEvidence(evidence)) {
+    if (status === '满足' || status === '有' || status === '未命中') c = Math.max(c, 72);
+    else if (status.includes('部分')) c = Math.max(c, 66);
+    else if (status.includes('不满足') || status === '无' || status === '命中') c = Math.max(c, 70);
+    else if (status.includes('待核实')) c = Math.min(Math.max(c, 45), 65);
+  } else {
+    if (status.includes('待核实')) c = Math.min(Math.max(c, 35), 55);
+    else c = Math.min(Math.max(c, 45), 62);
+  }
+
+  return clamp(c, 0, 100);
+}
+
+function calibrateConfidence(data, rawConfidence) {
+  const checks = [
+    ...(Array.isArray(data?.mustHaveCheck) ? data.mustHaveCheck : []),
+    ...(Array.isArray(data?.bonusCheck) ? data.bonusCheck : []),
+    ...(Array.isArray(data?.vetoCheck) ? data.vetoCheck : [])
+  ];
+
+  const total = checks.length;
+  const explicitEvidenceCount = checks.filter(x => hasExplicitEvidence(x?.evidence)).length + (Array.isArray(data?.evidenceQuotes) ? data.evidenceQuotes.filter(Boolean).length : 0);
+  const waitingCount = checks.filter(x => String(x?.status || '').includes('待核实')).length;
+  const directRatio = total ? explicitEvidenceCount / Math.max(total, 1) : 0;
+  const waitingRatio = total ? waitingCount / Math.max(total, 1) : 0;
+
+  let c = clamp(rawConfidence ?? 0, 0, 100);
+
+  // 置信度代表“这次分析有多少证据支撑”，不是“候选人匹配度高不高”。
+  // 所以：候选人不匹配，但简历证据清楚，也可以有较高置信度。
+  if (total >= 3 && explicitEvidenceCount >= 3) c = Math.max(c, 70);
+  if (total >= 5 && explicitEvidenceCount >= 5 && directRatio >= 0.5) c = Math.max(c, 76);
+  if (total >= 6 && explicitEvidenceCount >= 7 && directRatio >= 0.65 && waitingRatio <= 0.35) c = Math.max(c, 82);
+  if (Array.isArray(data?.evidenceQuotes) && data.evidenceQuotes.length >= 3) c = Math.max(c, 74);
+
+  const completeness = clamp(data?.dataQuality?.resumeCompleteness ?? 0, 0, 100);
+  const sufficiency = clamp(data?.dataQuality?.evidenceSufficiency ?? 0, 0, 100);
+  if (completeness >= 70 && sufficiency >= 65) c = Math.max(c, 72);
+  if (completeness >= 80 && sufficiency >= 75) c = Math.max(c, 80);
+
+  // 限制条件：如果大量项目待核实，或几乎没有证据，不应虚高。
+  if (waitingRatio > 0.55) c = Math.min(c, 68);
+  if (waitingRatio > 0.75) c = Math.min(c, 58);
+  if (explicitEvidenceCount === 0) c = Math.min(c, 55);
+
+  return clamp(Math.round(c), 0, 100);
+}
+
 function normalizeChecks(value) {
   if (!Array.isArray(value)) return [];
   return value.map(x => ({
@@ -243,7 +303,7 @@ function normalizeChecks(value) {
     status: String(x?.status || '待核实'),
     evidence: String(x?.evidence || ''),
     reason: String(x?.reason || ''),
-    confidence: clamp(x?.confidence ?? 0, 0, 100)
+    confidence: normalizeCheckConfidence(x)
   })).filter(x => x.item);
 }
 
@@ -266,7 +326,7 @@ function normalizeCandidateProfile(profile) {
 
 function normalizeResult(data, passLine) {
   const score = clamp(data?.score ?? 0, 0, 100);
-  const confidence = clamp(data?.confidence ?? 0, 0, 100);
+  const confidence = calibrateConfidence(data, data?.confidence ?? 0);
 
   let level = data?.level;
   if (!level) {
@@ -295,7 +355,7 @@ function normalizeResult(data, passLine) {
     dataQuality: {
       resumeCompleteness: clamp(data?.dataQuality?.resumeCompleteness ?? confidence, 0, 100),
       evidenceSufficiency: clamp(data?.dataQuality?.evidenceSufficiency ?? confidence, 0, 100),
-      uncertaintyReason: String(data?.dataQuality?.uncertaintyReason || '')
+      uncertaintyReason: String(data?.dataQuality?.uncertaintyReason || (confidence >= 70 ? '简历中存在较多可引用证据，分析置信度已按证据充分度校准。' : '证据不足或待核实项较多，置信度偏保守。'))
     },
     mustHaveCheck: normalizeChecks(data?.mustHaveCheck),
     bonusCheck: normalizeChecks(data?.bonusCheck),
@@ -346,6 +406,16 @@ function buildPrompt(payload) {
 7. 必须尽量识别候选人姓名，并在 candidateProfile 中给出大致年龄推断。
 8. 年龄推断只能基于简历里的本科/硕士/博士年份、毕业年份、第一份全职工作年份、累计工作年限等信息；不得凭空编造。
 9. 年龄只输出“约xx岁”或“约xx-xx岁”这类粗略范围，并写明推断依据与置信度；信息不足时写“待推断”。
+
+【置信度校准规则】
+- confidence 表示“本次分析是否有充分简历证据支撑”，不是候选人匹配分。
+- 候选人匹配度低，但简历证据清楚，也可以给 75-90 的高置信度。
+- 候选人匹配度高，但关键证据缺失，才应降低置信度。
+- 如果简历内容完整、经历时间线清楚、每个判断都有原文依据，整体 confidence 通常不应低于 75。
+- 如果有 3 条以上明确原文证据，且多数必要项能判断为满足/不满足/部分满足，整体 confidence 通常不应低于 70。
+- 如果只是部分项待核实，但大部分判断有证据，整体 confidence 不应过低。
+- 只有当简历很短、PDF疑似读取不完整、关键字段缺失、大部分检查项都是待核实时，整体 confidence 才应低于 60。
+- 单项检查的 confidence 也按证据充分度判断：有原文依据通常 70+；部分证据 60-75；无证据且待核实通常 35-55。
 
 ${strictnessInstruction}
 
@@ -410,6 +480,7 @@ ${resumeText}
   },
   "score": 0,
   "confidence": 0,
+  "confidenceNote": "置信度代表分析证据可靠度，不代表候选人匹配度；证据充分时，即使分数较低也可以高置信度。",
   "level": "强匹配/基本匹配/一般匹配/匹配度较低",
   "recommendation": "优先推进/建议推进/作为储备/不建议推进",
   "strictnessLevel": 3,
@@ -449,32 +520,31 @@ ${resumeText}
 }
 
 ipcMain.handle('app:get-default-standard', () => ({
-  jobTitle: '腾讯云法国高级战略销售负责人',
-  positionOverview: '腾讯云法国/南欧高级战略销售岗。岗位常驻巴黎，负责法国及南欧战略客户开发、云业务收入增长、大客户签约、高价值合同谈判，重点行业包括 零售、电信、电商、游戏。',
-  scoringRule: '总分100分：企业销售年限与强度20分；云/科技/数字化行业背景20分；战略大客户经验15分；主动开发与成交能力15分；法国/南欧市场匹配10分；语言能力10分；目标行业经验5分；云厂、人工智能、电商加分5分。缺少 销售、法语、法国或巴黎常驻任一核心项时，原则上不建议推进。',
+  jobTitle: '某某公司｜某某岗位',
+  positionOverview: '某某公司某某岗位。请在这里填写岗位负责的业务范围、目标客户、核心任务、工作地点、业务目标和重点行业。',
+  scoringRule: '总分100分：核心经验与年限20分；行业背景20分；客户/项目/业务复杂度15分；关键能力15分；目标市场或工作地点匹配10分；语言或沟通能力10分；目标行业经验5分；其他加分项5分。缺少岗位最关键必要项时，原则上不建议推进。',
   mustHave: [
-    '必须有明确 企业销售 经历，简历中需体现客户开发、销售指标、合同签约或 收入结果；仅售前、客户成功、市场岗位不算完全满足。',
-    '必须有10年以上科技/云计算/数字化领域 企业销售经验。',
-    '必须有完整销售周期经验：线索挖掘、潜在客户开发、客户推进、合同签订、账户拓展。',
-    '必须有战略大客户或企业级客户管理经验，最好对接 企业高层决策人。',
-    '必须英语流利，能进行跨国团队协作和商务沟通。',
-    '必须法语熟练，能支持法国客户商务沟通、谈判或高层关系维护。',
-    '必须能够 常驻巴黎或法国，或明确愿意 迁往巴黎或法国。',
-    '必须体现 主动开发、成交、销售指标/收入结果导向。'
+    '必须具备岗位要求中的核心工作经验，简历中需要体现具体职责、成果或项目证据。',
+    '必须满足岗位要求的最低年限或资历阶段。',
+    '必须具备完整的关键业务流程经验，例如从需求识别、方案推进到结果交付。',
+    '必须具备目标客户、目标项目或目标业务场景相关经验。',
+    '必须具备岗位要求的沟通、协作和跨团队推进能力。',
+    '必须满足岗位要求中的语言、地点、行业或资质等硬性条件。',
+    '必须体现结果导向，简历中最好有可验证的业绩、项目成果或量化指标。'
   ],
   niceToHave: [
-    '有 主流云厂商或云服务商 等云厂或云服务商销售经验优先。',
-    '卖过 基础云服务、平台云服务、内容分发、安全、数据库、人工智能云服务、数据平台、企业软件 等复杂云/数字化解决方案优先。',
-    '有法国或南欧战略客户资源优先，尤其是 零售、电信、电商、游戏 行业客户。',
-    '有百万欧元级别或复杂高价值合同谈判经验优先。',
-    '有 人工智能项目、人工智能基础设施、大语言模型、智能化解决方案经验优先。',
-    '有电商行业背景或服务电商客户经验优先。'
+    '有目标行业头部公司、同类公司或相近业务经验优先。',
+    '有复杂项目、重点客户、高价值合同或核心业务场景经验优先。',
+    '有岗位相关工具、平台、系统、产品或方法论经验优先。',
+    '有管理经验、跨区域协作经验或团队推进经验优先。',
+    '有人工智能、数据化、自动化或数字化转型相关经验优先。',
+    '有可量化成果、明确奖项、认证或标杆案例优先。'
   ],
   vetoItems: [
-    '没有真正 销售经历，只是售前、技术、产品、客户成功或市场。',
-    '不会法语，且无法支持法国本地客户商务沟通。',
-    '不能常驻巴黎或法国，也没有法国或南欧市场经验。',
-    '没有科技、云计算、数字化或企业软件行业销售经验。'
+    '没有岗位最关键的核心经验。',
+    '不满足岗位明确要求的语言、地点、资质或行业硬性条件。',
+    '简历内容与岗位方向明显不相关。',
+    '关键经历无法提供任何原文证据，且需要大量主观推断。'
   ]
 }));
 

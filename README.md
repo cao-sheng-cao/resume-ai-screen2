@@ -465,3 +465,56 @@ Token 数据来自 DeepSeek API 返回的 `usage` 字段。
 - 新增 `scripts/selfcheck.js`。
 - 新增 `docs/ENGINEERING_CLEANUP.md`。
 - 新增 `自检报告-v1.0.29-反vibe-slop工程整理.txt`。
+
+
+## v1.0.30 模块化拆分版
+
+本版本完成工程模块化拆分：
+
+### 主进程新增模块
+- `src/main/services/storage.js`
+- `src/main/services/ai-client.js`
+
+### 渲染进程新增模块
+- `src/renderer/modules/layout-controls.js`
+- `src/renderer/modules/result-highlights.js`
+- `src/renderer/modules/candidate-data.js`
+- `src/renderer/modules/candidate-actions.js`
+- `src/renderer/modules/candidate-cards.js`
+
+### 自检
+- `scripts/selfcheck.js` 已更新，覆盖模块文件。
+- `npm run selfcheck` 可检查核心文件、JS语法、HTML ID、按钮绑定、IPC、模块拆分、历史误替换、严格度隔离排行榜、候选人卡片等。
+- 新增 `自检报告-v1.0.30-模块化拆分版.txt`。
+
+
+## v1.0.31 候选人归类颜色标签版
+
+本版本新增：
+
+- 排行榜中的候选人归类下拉框会按类别显示颜色。
+- 项目内候选人卡片中的归类会以彩色标签显示。
+- 支持颜色类别：
+  - 优先推进
+  - 建议推进
+  - 待复核
+  - 作为储备
+  - 不建议推进
+  - 已联系
+  - 已面试
+  - 已淘汰
+- 更新 `scripts/selfcheck.js`，加入归类颜色标签检查。
+- 新增 `自检报告-v1.0.31-候选人归类颜色标签版.txt`。
+
+
+## v1.0.32 评分可信度增强版
+
+本版本优先优化“评分可信度”：
+
+- 新增同候选人历史评分对比。
+- 新增评分差异提醒：同候选人分差超过 5 分时提示人工复核。
+- 新增证据覆盖率。
+- 新增缺少原文依据的判断列表。
+- 项目内候选人卡片新增历史评分、评分波动、证据覆盖字段。
+- 更新 `scripts/selfcheck.js`，加入评分历史、评分差异和证据覆盖率检查。
+- 新增 `自检报告-v1.0.32-评分可信度增强版.txt`。

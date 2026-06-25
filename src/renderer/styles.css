@@ -2432,3 +2432,261 @@ select {
   }
 }
 
+
+
+/* v1.0.31 候选人归类颜色标签 */
+.category-cell {
+  display: flex;
+  align-items: center;
+  min-width: 118px;
+}
+
+.category-select,
+.category-badge {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 850;
+  letter-spacing: -0.01em;
+}
+
+.category-select {
+  min-width: 110px;
+  padding: 7px 28px 7px 10px;
+  font-size: 12px;
+}
+
+.category-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.category-priority {
+  color: #1f5f35;
+  background: #edf8f0;
+  border-color: #cce8d3;
+}
+
+.category-recommend {
+  color: #2f6444;
+  background: #f1faf3;
+  border-color: #d8eddc;
+}
+
+.category-review {
+  color: #8a6417;
+  background: #fff8e6;
+  border-color: #f0d997;
+}
+
+.category-reserve {
+  color: #4c5f80;
+  background: #f0f4fb;
+  border-color: #d6e0f2;
+}
+
+.category-reject {
+  color: #9b342d;
+  background: #fff0ef;
+  border-color: #edc7c3;
+}
+
+.category-contacted {
+  color: #385e8f;
+  background: #eef5ff;
+  border-color: #cfe0f7;
+}
+
+.category-interview {
+  color: #684da3;
+  background: #f5f0ff;
+  border-color: #dfd2f6;
+}
+
+.category-eliminated {
+  color: #5d626b;
+  background: #f1f2f4;
+  border-color: #d9dce1;
+}
+
+.category-default {
+  color: #626262;
+  background: #f5f5f5;
+  border-color: #e1e1e1;
+}
+
+.analysis-card-flags .category-badge {
+  margin-top: 2px;
+}
+
+
+
+/* v1.0.32 评分可信度复核 */
+.score-trust-panel {
+  display: none;
+  margin: 12px 0 18px;
+  border: 1px solid #e7e7e7;
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.score-trust-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.score-trust-head div {
+  display: grid;
+  gap: 4px;
+}
+
+.score-trust-head strong {
+  font-size: 15px;
+}
+
+.score-trust-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.trust-badge {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid #e3e3e3;
+  background: #f7f7f7;
+  color: #555;
+}
+
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.trust-card {
+  display: grid;
+  gap: 7px;
+  min-height: 96px;
+  border: 1px solid #e8e8e8;
+  border-radius: 16px;
+  padding: 13px 14px;
+  background: #fafafa;
+}
+
+.trust-card span {
+  color: #707070;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.trust-card strong {
+  font-size: 20px;
+  letter-spacing: -0.03em;
+  color: #222;
+}
+
+.trust-card small {
+  color: #777;
+  line-height: 1.45;
+}
+
+.trust-good {
+  background: #f4f8f3;
+  border-color: #dbe8d7;
+  color: #37633a;
+}
+
+.trust-good strong {
+  color: #37633a;
+}
+
+.trust-mid {
+  background: #fff8e8;
+  border-color: #f1dfaf;
+  color: #8a6417;
+}
+
+.trust-mid strong {
+  color: #8a6417;
+}
+
+.trust-bad {
+  background: #fff2f1;
+  border-color: #efcac6;
+  color: #a33a31;
+}
+
+.trust-bad strong {
+  color: #a33a31;
+}
+
+.evidence-gap-box {
+  display: none;
+  margin-top: 12px;
+  border-top: 1px solid #eeeeee;
+  padding-top: 12px;
+}
+
+.evidence-gap-box > strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+#evidenceGapList {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+#evidenceGapList li {
+  display: grid;
+  gap: 4px;
+  border-radius: 12px;
+  border: 1px solid #f1dfaf;
+  background: #fffaf0;
+  padding: 10px 12px;
+}
+
+#evidenceGapList li strong {
+  color: #8a6417;
+  font-size: 13px;
+}
+
+#evidenceGapList li span {
+  color: #666;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.score-delta-warn {
+  color: #a33a31 !important;
+}
+
+@media (max-width: 920px) {
+  .trust-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .score-trust-head {
+    display: grid;
+  }
+}
+

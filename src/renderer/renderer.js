@@ -48,78 +48,19 @@ const STRICTNESS_TEXT = {
 const $ = (id) => document.getElementById(id);
 
 
-function setZoomLabel(factor) {
-  const btn = $('zoomResetBtn');
-  if (btn) btn.textContent = `${Math.round(Number(factor || 1) * 100)}%`;
-}
 
-async function adjustZoom(delta) {
-  if (!window.resumeApp?.adjustZoom) return;
-  const result = await window.resumeApp.adjustZoom(delta);
-  setZoomLabel(result?.zoomFactor || 1);
-}
 
-async function resetZoom() {
-  if (!window.resumeApp?.resetZoom) return;
-  const result = await window.resumeApp.resetZoom();
-  setZoomLabel(result?.zoomFactor || 1);
-}
 
-async function initZoomLabel() {
-  try {
-    if (window.resumeApp?.getZoom) {
-      const result = await window.resumeApp.getZoom();
-      setZoomLabel(result?.zoomFactor || 1);
-    }
-  } catch {
-    setZoomLabel(1);
-  }
-}
 
-function toggleSidebar(force) {
-  const shell = document.querySelector('.app-shell');
-  if (!shell) return;
-  const shouldCollapse = typeof force === 'boolean' ? force : !shell.classList.contains('sidebar-collapsed');
-  shell.classList.toggle('sidebar-collapsed', shouldCollapse);
-  localStorage.setItem('sidebarCollapsed', shouldCollapse ? '1' : '0');
-}
 
-function toggleSetupSection(sectionId, force) {
-  const section = $(sectionId);
-  if (!section) return;
-  const shouldCollapse = typeof force === 'boolean' ? force : !section.classList.contains('setup-collapsed');
-  section.classList.toggle('setup-collapsed', shouldCollapse);
-  const btn = sectionId === 'key' ? $('toggleKeySectionBtn') : $('toggleStandardSectionBtn');
-  if (btn) btn.textContent = shouldCollapse ? '展开设置' : '收起设置';
-  localStorage.setItem(`${sectionId}SetupCollapsed`, shouldCollapse ? '1' : '0');
-}
 
-function initLayoutControls() {
-  toggleSidebar(localStorage.getItem('sidebarCollapsed') === '1');
-  toggleSetupSection('key', localStorage.getItem('keySetupCollapsed') === '1');
-  toggleSetupSection('standard', localStorage.getItem('standardSetupCollapsed') === '1');
-  initZoomLabel();
 
-  window.addEventListener('keydown', async (event) => {
-    if (!event.ctrlKey && !event.metaKey) return;
-    if (event.key === '+' || event.key === '=') {
-      event.preventDefault();
-      await adjustZoom(0.1);
-    } else if (event.key === '-' || event.key === '_') {
-      event.preventDefault();
-      await adjustZoom(-0.1);
-    } else if (event.key === '0') {
-      event.preventDefault();
-      await resetZoom();
-    }
-  });
 
-  window.addEventListener('wheel', async (event) => {
-    if (!event.ctrlKey && !event.metaKey) return;
-    event.preventDefault();
-    await adjustZoom(event.deltaY < 0 ? 0.1 : -0.1);
-  }, { passive: false });
-}
+
+
+
+
+
 
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -770,244 +711,37 @@ async function analyze() {
 }
 
 
-function firstText(items, fallback = '暂无') {
-  const arr = Array.isArray(items) ? items.filter(Boolean) : [];
-  return arr.length ? String(arr[0]) : fallback;
-}
-
-function countStatus(items, tester) {
-  const arr = Array.isArray(items) ? items : [];
-  return arr.filter(tester).length;
-}
-
-function summarizeShort(text, limit = 38) {
-  const s = String(text || '').replace(/\s+/g, ' ').trim();
-  return s.length > limit ? s.slice(0, limit) + '…' : s;
-}
-
-function setPriorityCardState(id, state) {
-  const el = $(id);
-  if (!el) return;
-  el.classList.remove('priority-good', 'priority-mid', 'priority-bad');
-  el.classList.add(state);
-}
-
-function renderPriorityHighlights(data) {
-  const strip = $('priorityStrip');
-  if (!strip) return;
-  strip.style.display = 'grid';
-
-  const score = Number(data.score || 0);
-  const rec = data.recommendation || '待判断';
-  const level = data.level || '';
-  const must = Array.isArray(data.mustHaveCheck) ? data.mustHaveCheck : [];
-  const veto = Array.isArray(data.vetoCheck) ? data.vetoCheck : [];
-  const riskPoints = Array.isArray(data.riskPoints) ? data.riskPoints : [];
-  const missingPoints = Array.isArray(data.missingPoints) ? data.missingPoints : [];
-  const verifyItems = Array.isArray(data.verificationItems) ? data.verificationItems : [];
-
-  const vetoHitCount = countStatus(veto, x => String(x.status || '').includes('命中'));
-  const vetoUnclearCount = countStatus(veto, x => String(x.status || '').includes('待核实'));
-  const mustWeakCount = countStatus(must, x => {
-    const s = String(x.status || '');
-    return s.includes('不满足') || s.includes('待核实') || s.includes('部分');
-  });
-
-  $('priorityDecision').textContent = `${rec}｜${score}分`;
-  $('priorityDecisionReason').textContent = `${level || '综合判断'}；必要项风险 ${mustWeakCount} 项`;
-  if (rec.includes('优先') || (score >= 85 && vetoHitCount === 0)) setPriorityCardState('decisionCard', 'priority-good');
-  else if (rec.includes('不建议') || vetoHitCount > 0 || score < 65) setPriorityCardState('decisionCard', 'priority-bad');
-  else setPriorityCardState('decisionCard', 'priority-mid');
-
-  const riskTotal = vetoHitCount + vetoUnclearCount + riskPoints.length;
-  $('priorityRisk').textContent = `${riskTotal}项`;
-  $('priorityRiskText').textContent = vetoHitCount > 0
-    ? `命中一票否决：${summarizeShort(firstText(veto.filter(x => String(x.status || '').includes('命中')).map(x => x.item)))}`
-    : summarizeShort(firstText(riskPoints, vetoUnclearCount ? '存在一票否决待核实项' : '暂无强风险'));
-  setPriorityCardState('riskCard', riskTotal ? (vetoHitCount ? 'priority-bad' : 'priority-mid') : 'priority-good');
-
-  const missingTotal = missingPoints.length + mustWeakCount;
-  $('priorityMissing').textContent = `${missingTotal}项`;
-  $('priorityMissingText').textContent = summarizeShort(firstText(missingPoints, mustWeakCount ? '必要项存在部分满足/待核实' : '暂无关键缺失'));
-  setPriorityCardState('missingCard', missingTotal ? 'priority-mid' : 'priority-good');
-
-  $('priorityVerify').textContent = `${verifyItems.length}项`;
-  $('priorityVerifyText').textContent = summarizeShort(firstText(verifyItems, '暂无待核实项'));
-  setPriorityCardState('verifyCard', verifyItems.length ? 'priority-mid' : 'priority-good');
-
-  const evidence = Array.isArray(data.evidenceQuotes) ? data.evidenceQuotes.filter(Boolean).slice(0, 5) : [];
-  const box = $('importantEvidenceBox');
-  const list = $('importantEvidenceList');
-  if (box && list) {
-    list.innerHTML = '';
-    if (evidence.length) {
-      box.style.display = 'block';
-      evidence.forEach(x => {
-        const li = document.createElement('li');
-        li.textContent = x;
-        list.appendChild(li);
-      });
-    } else {
-      box.style.display = 'none';
-    }
-  }
-}
 
 
 
-function buildCandidateSummaryText(data) {
-  if (!data) return '';
-  const profile = data.candidateProfile || {};
-  return [
-    `候选人：${data.candidateName || profile.nameFromResume || '待识别'}`,
-    `评分：${data.score || 0}/100`,
-    `证据置信度：${data.confidence || 0}%`,
-    `推进建议：${data.recommendation || '待判断'}`,
-    `严格度：${data.strictnessLabel || data.strictnessLevel || '未记录'}`,
-    `摘要：${data.summary || ''}`,
-    `匹配点：${(data.matchedPoints || []).join('；') || '暂无'}`,
-    `关键缺失：${(data.missingPoints || []).join('；') || '暂无'}`,
-    `风险点：${(data.riskPoints || []).join('；') || '暂无'}`,
-    `待核实：${(data.verificationItems || []).join('；') || '暂无'}`
-  ].join('\n');
-}
 
-function buildRiskText(data) {
-  if (!data) return '';
-  const veto = Array.isArray(data.vetoCheck) ? data.vetoCheck : [];
-  const vetoText = veto.map(x => `${x.item || ''}：${x.status || ''}｜${x.reason || ''}｜依据：${x.evidence || ''}`).join('\n');
-  return [
-    `候选人：${data.candidateName || '待识别'}`,
-    `推进建议：${data.recommendation || '待判断'}｜评分：${data.score || 0}`,
-    '',
-    '【强风险 / 一票否决】',
-    vetoText || '暂无明确命中',
-    '',
-    '【风险点】',
-    (data.riskPoints || []).join('\n') || '暂无',
-    '',
-    '【关键缺失】',
-    (data.missingPoints || []).join('\n') || '暂无',
-    '',
-    '【必须核实】',
-    (data.verificationItems || []).join('\n') || '暂无'
-  ].join('\n');
-}
 
-async function copyText(text, successMessage = '已复制。') {
-  const value = String(text || '').trim();
-  if (!value) {
-    alert('当前没有可复制内容。');
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(value);
-  } catch {
-    const textarea = document.createElement('textarea');
-    textarea.value = value;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand('copy');
-    textarea.remove();
-  }
-  setStatus('analyzeStatus', successMessage);
-}
 
-function copyCurrentSummary() {
-  copyText(buildCandidateSummaryText(currentResult), '已复制候选人推荐摘要。');
-}
 
-function copyCurrentRisk() {
-  copyText(buildRiskText(currentResult), '已复制候选人风险说明。');
-}
 
-function copyCurrentQuestions() {
-  const questions = currentResult?.interviewQuestions || [];
-  copyText(questions.map((x, i) => `${i + 1}. ${x}`).join('\n'), '已复制面试追问清单。');
-}
 
-function exportCurrentCandidate() {
-  if (!currentResult) {
-    alert('当前还没有候选人分析结果。');
-    return;
-  }
-  const content = buildCandidateSummaryText(currentResult) + '\n\n' + buildRiskText(currentResult);
-  const blob = new Blob(['\ufeff' + content], { type: 'text/plain;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `候选人分析_${sanitizeFilename(currentResult.candidateName || '待识别')}_${new Date().toISOString().slice(0,10)}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
-async function quickMarkCurrent(category) {
-  if (!currentResult) {
-    alert('当前还没有候选人分析结果。');
-    return;
-  }
-  let item = leaderboard.find(x => String(x.id) === String(currentResult._leaderboardId));
-  if (!item) {
-    item = [...leaderboard].reverse().find(x => String(x.candidateName || '') === String(currentResult.candidateName || ''));
-  }
-  if (!item) {
-    alert('当前候选人还没有加入项目卡片/排行榜，请先点击“加入排行榜”。');
-    return;
-  }
-  updateCandidateCategory(item.id, category);
-  await persistProjects();
-  await window.resumeApp.saveLeaderboard(leaderboard);
-  renderLeaderboard();
-  renderCandidateCards();
-  setStatus('analyzeStatus', `已将 ${item.candidateName || '该候选人'} 标记为：${category}`);
-}
 
-function makeAnalysisSnapshot(data) {
-  return JSON.parse(JSON.stringify({
-    candidateName: data.candidateName || '',
-    candidateProfile: data.candidateProfile || {},
-    score: data.score || 0,
-    confidence: data.confidence || 0,
-    level: data.level || '',
-    recommendation: data.recommendation || '',
-    summary: data.summary || '',
-    dataQuality: data.dataQuality || {},
-    mustHaveCheck: data.mustHaveCheck || [],
-    bonusCheck: data.bonusCheck || [],
-    vetoCheck: data.vetoCheck || [],
-    matchedPoints: data.matchedPoints || [],
-    riskPoints: data.riskPoints || [],
-    missingPoints: data.missingPoints || [],
-    verificationItems: data.verificationItems || [],
-    interviewQuestions: data.interviewQuestions || [],
-    evidenceQuotes: data.evidenceQuotes || [],
-    scoreBreakdown: data.scoreBreakdown || {},
-    model: data.model || '',
-    modelLabel: data.modelLabel || '',
-    strictnessLevel: data.strictnessLevel || Number(value('strictnessLevel') || 3),
-    strictnessLabel: data.strictnessLabel || (STRICTNESS_TEXT[Number(value('strictnessLevel') || 3)]?.label || '3度｜标准推荐'),
-    usage: data.usage || {},
-    extractionUsage: data.extractionUsage || {},
-    scoringUsage: data.scoringUsage || {},
-    tokenUsageNote: data.tokenUsageNote || ''
-  }));
-}
 
-function updateWorkflowStatus() {
-  const p = activeProject();
-  setText('statusProject', p?.name || '默认项目');
-  setText('statusJob', value('jobTitle') || p?.standard?.jobTitle || '未命名岗位');
-  const strictnessLevel = Number(value('strictnessLevel') || 3);
-  setText('statusStrictness', STRICTNESS_TEXT[strictnessLevel]?.label || `${strictnessLevel}度`);
-  const modelKey = value('modelSelect');
-  const model = deepseekModels.find(x => `${x.id}:${x.thinking || ''}` === modelKey);
-  setText('statusModel', model?.label || modelKey || '-');
-  setText('statusCandidateCount', `${candidates.length || 0}人`);
-  const cardProject = $('candidateCardsProjectName');
-  if (cardProject) cardProject.textContent = p?.name || '默认项目';
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 function renderResult(data) {
@@ -1032,6 +766,7 @@ function renderResult(data) {
   $('confidenceText').textContent = `${data.confidence || 0}%`;
   $('uncertaintyReason').textContent = data.dataQuality?.uncertaintyReason || '证据越充分，置信度越高。';
   renderPriorityHighlights(data);
+  renderScoreTrust(data);
 
   const b = data.scoreBreakdown || {};
   setText('mSales', b.sales); setText('mIndustry', b.industry); setText('mAccount', b.account); setText('mClosing', b.成交);
@@ -1139,55 +874,15 @@ function migrateLeaderboard(items) {
   }));
 }
 
-function migrateCandidates(items, fallbackLeaderboard = []) {
-  const source = Array.isArray(items) && items.length ? items : fallbackLeaderboard;
-  const arr = Array.isArray(source) ? source : [];
-  return arr.map((x) => ({
-    ...x,
-    id: x.id || `candidate_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    jobTitle: x.jobTitle || '历史导入候选人',
-    category: x.category || inferCategory(x),
-    note: x.note || '',
-    createdAt: x.createdAt || new Date().toISOString(),
-    weekKey: x.weekKey || getWeekKey(x.createdAt || x.time || new Date()),
-    strictnessLevel: x.strictnessLevel || 3,
-    strictnessLabel: x.strictnessLabel || '3度｜标准推荐',
-    totalTokens: Number(x.totalTokens || 0),
-    extractionTokens: Number(x.extractionTokens || 0),
-    scoringTokens: Number(x.scoringTokens || 0),
-    analysisSnapshot: x.analysisSnapshot || null
-  }));
-}
 
-function syncCandidateFromLeaderboardItem(item) {
-  if (!item) return;
-  const idx = candidates.findIndex(x => String(x.id) === String(item.id));
-  const next = {
-    ...item,
-    analysisSnapshot: item.analysisSnapshot || candidates[idx]?.analysisSnapshot || null
-  };
-  if (idx >= 0) candidates[idx] = next;
-  else candidates.push(next);
-}
 
-function updateCandidateCategory(id, category) {
-  const c = candidates.find(x => String(x.id) === String(id));
-  if (c) c.category = category;
-  const r = leaderboard.find(x => String(x.id) === String(id));
-  if (r) r.category = category;
-}
 
-function updateCandidateNote(id, note) {
-  const c = candidates.find(x => String(x.id) === String(id));
-  if (c) c.note = note;
-  const r = leaderboard.find(x => String(x.id) === String(id));
-  if (r) r.note = note;
-}
 
-function removeCandidateEverywhere(id) {
-  candidates = candidates.filter(x => String(x.id) !== String(id));
-  leaderboard = leaderboard.filter(x => String(x.id) !== String(id));
-}
+
+
+
+
+
 
 
 function inferCategory(data) {
@@ -1227,6 +922,7 @@ async function addToLeaderboard(data, showAlert) {
   }
   const standard = getStandardFromForm();
   const now = new Date();
+  const scoreStability = buildScoreStability(data);
   const item = {
     id: Date.now(),
     candidateName: data.candidateName || data.candidateProfile?.nameFromResume || '待识别',
@@ -1247,6 +943,11 @@ async function addToLeaderboard(data, showAlert) {
     totalTokens: Number(data.usage?.totalTokens || 0),
     extractionTokens: Number(data.extractionUsage?.totalTokens || 0),
     scoringTokens: Number(data.scoringUsage?.totalTokens || 0),
+    scoreHistory: [...(scoreStability.history || []), makeScoreHistoryEntry(data, null, now)].slice(-10),
+    scoreDeltaWarning: Boolean(scoreStability.warning),
+    scoreDeltaAmount: Number(scoreStability.maxDelta || 0),
+    previousScore: scoreStability.previousScore,
+    evidenceCoveragePercent: Number(data.evidenceCoverage?.percent || calculateEvidenceCoverage(data).percent || 0),
     analysisSnapshot: makeAnalysisSnapshot(data),
     summary: data.summary || '',
     jobTitle: standard.jobTitle || '未命名岗位',
@@ -1276,108 +977,9 @@ async function addToLeaderboard(data, showAlert) {
   return item;
 }
 
-function compactList(items, fallback = '暂无') {
-  const arr = Array.isArray(items) ? items.filter(Boolean) : [];
-  return arr.length ? arr.slice(0, 2).map(x => `<li>${escapeHtml(x)}</li>`).join('') : `<li>${fallback}</li>`;
-}
 
-function renderCandidateCards() {
-  const listBox = $('candidateCardList');
-  if (!listBox) return;
 
-  const p = activeProject();
-  const projectName = p?.name || '默认项目';
-  const heading = $('candidateCardsProjectName');
-  if (heading) heading.textContent = projectName;
 
-  const hint = $('candidateCardHint');
-  const items = [...(candidates || [])].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-  if (hint) hint.textContent = `当前项目 ${items.length} 张候选人卡片`;
-
-  updateWorkflowStatus();
-
-  if (!items.length) {
-    listBox.innerHTML = `<div class="empty-card">
-      <strong>当前项目暂无候选人分析卡片</strong>
-      <span>完成一次候选人评分后，会自动在这里生成二级候选人卡片。</span>
-    </div>`;
-    return;
-  }
-
-  listBox.innerHTML = '';
-  items.forEach((x, index) => {
-    const snapshot = x.analysisSnapshot || null;
-    const riskItems = snapshot?.riskPoints || [];
-    const missingItems = snapshot?.missingPoints || [];
-    const verifyItems = snapshot?.verificationItems || [];
-    const state = String(x.recommendation || '').includes('不建议') || Number(x.score || 0) < 65
-      ? 'bad'
-      : (String(x.recommendation || '').includes('优先') || Number(x.score || 0) >= 85 ? 'good' : 'mid');
-
-    const card = document.createElement('article');
-    card.className = `analysis-card analysis-card-${state}`;
-    card.innerHTML = `
-      <div class="analysis-card-head">
-        <div>
-          <span class="analysis-card-kicker">二级候选人卡片 #${index + 1}</span>
-          <h3>${escapeHtml(x.candidateName || '待识别')}</h3>
-          <p>${escapeHtml(x.jobTitle || '未命名岗位')}｜${escapeHtml(x.strictnessLabel || strictnessName(x.strictnessLevel || 3))}</p>
-        </div>
-        <div class="analysis-score">
-          <strong>${Number(x.score || 0)}</strong>
-          <span>${escapeHtml(x.recommendation || '待判断')}</span>
-        </div>
-      </div>
-      <div class="analysis-card-summary">${escapeHtml(x.summary || '暂无摘要')}</div>
-      <div class="analysis-card-flags">
-        <div><span>风险</span><strong>${riskItems.length}</strong></div>
-        <div><span>缺失</span><strong>${missingItems.length}</strong></div>
-        <div><span>待核实</span><strong>${verifyItems.length}</strong></div>
-        <div><span>归类</span><strong>${escapeHtml(x.category || '待归类')}</strong></div>
-      </div>
-      <details class="analysis-card-detail">
-        <summary>展开卡片重点</summary>
-        <div class="analysis-card-detail-grid">
-          <div><h4>风险点</h4><ul>${compactList(riskItems, '暂无风险点')}</ul></div>
-          <div><h4>关键缺失</h4><ul>${compactList(missingItems, '暂无关键缺失')}</ul></div>
-          <div><h4>必须核实</h4><ul>${compactList(verifyItems, '暂无待核实项')}</ul></div>
-        </div>
-      </details>
-      <div class="analysis-card-actions">
-        <button class="ghost small" data-view-card="${x.id}" ${snapshot ? '' : 'disabled'}>查看完整结果</button>
-        <button class="ghost small" data-copy-card="${x.id}">复制摘要</button>
-        <button class="ghost small" data-mark-card="${x.id}" data-category="优先推进">标记优先</button>
-        <button class="ghost small" data-mark-card="${x.id}" data-category="待复核">标记待核实</button>
-      </div>
-    `;
-    listBox.appendChild(card);
-  });
-
-  listBox.querySelectorAll('[data-view-card]').forEach(btn => btn.onclick = () => {
-    const item = candidates.find(x => String(x.id) === String(btn.dataset.viewCard));
-    if (!item?.analysisSnapshot) return;
-    currentResult = { ...item.analysisSnapshot, _leaderboardId: item.id };
-    renderResult(currentResult);
-    $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
-
-  listBox.querySelectorAll('[data-copy-card]').forEach(btn => btn.onclick = () => {
-    const item = candidates.find(x => String(x.id) === String(btn.dataset.copyCard));
-    if (!item) return;
-    const snapshot = item.analysisSnapshot || item;
-    copyText(buildCandidateSummaryText(snapshot), '已复制该候选人卡片摘要。');
-  });
-
-  listBox.querySelectorAll('[data-mark-card]').forEach(btn => btn.onclick = async () => {
-    const item = candidates.find(x => String(x.id) === String(btn.dataset.markCard));
-    if (!item) return;
-    updateCandidateCategory(item.id, btn.dataset.category || '待复核');
-    await persistProjects();
-    await window.resumeApp.saveLeaderboard(leaderboard);
-    renderLeaderboard();
-    renderCandidateCards();
-  });
-}
 
 
 function refreshLeaderboardFilters() {
@@ -1495,9 +1097,11 @@ function renderLeaderboard() {
         </div>
       </td>
       <td>
-        <select class="rank-select" data-category="${x.id}">
-          ${['优先推进','建议推进','待复核','作为储备','不建议推进','已联系','已面试','已淘汰'].map(c => `<option value="${c}" ${String(x.category || '') === c ? 'selected' : ''}>${c}</option>`).join('')}
-        </select>
+        <div class="category-cell">
+          <select class="rank-select category-select ${categoryClass(x.category || '待复核')}" data-category="${x.id}">
+            ${['优先推进','建议推进','待复核','作为储备','不建议推进','已联系','已面试','已淘汰'].map(c => `<option value="${c}" ${String(x.category || '') === c ? 'selected' : ''}>${c}</option>`).join('')}
+          </select>
+        </div>
       </td>
       <td>
         <div class="model-cell">
@@ -1514,6 +1118,7 @@ function renderLeaderboard() {
     const item = leaderboard.find(x => String(x.id) === String(select.dataset.category));
     if (item) {
       updateCandidateCategory(item.id, select.value);
+      applyCategorySelectClass(select);
       await persistProjects();
       await window.resumeApp.saveLeaderboard(leaderboard);
       renderProjectList();

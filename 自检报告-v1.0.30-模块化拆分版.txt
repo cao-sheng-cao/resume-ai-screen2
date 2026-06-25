@@ -1,0 +1,119 @@
+简历岗位匹配评分系统 v1.0.30 模块化拆分版自检报告
+
+一、本次升级结论
+模块化拆分已完成。静态自检全部通过，失败项为 0。
+
+二、本次实际拆分内容
+1. 主进程拆分 services/storage.js：集中处理 dataPath、readJson、writeJson、removeJson，其中 writeJson 保持原子写入。
+2. 主进程拆分 services/ai-client.js：集中处理 DeepSeek 请求。
+3. 渲染进程拆分 modules/layout-controls.js：页面缩放、左侧栏折叠、设置区折叠。
+4. 渲染进程拆分 modules/result-highlights.js：结果顶部关键信息突出显示。
+5. 渲染进程拆分 modules/candidate-data.js：候选人数据迁移、候选人/排行榜同步、状态栏。
+6. 渲染进程拆分 modules/candidate-actions.js：复制摘要、复制风险、复制面试追问、导出候选人、快捷标记。
+7. 渲染进程拆分 modules/candidate-cards.js：项目内候选人卡片渲染与交互。
+8. 更新 index.html，引入上述模块后再加载 renderer.js。
+9. 更新 scripts/selfcheck.js，使自检覆盖新模块。
+
+三、拆分后的关键文件
+src/main/services/storage.js
+src/main/services/ai-client.js
+src/renderer/modules/layout-controls.js
+src/renderer/modules/result-highlights.js
+src/renderer/modules/candidate-data.js
+src/renderer/modules/candidate-actions.js
+src/renderer/modules/candidate-cards.js
+
+四、自检结果
+- 文件存在：package.json：通过；
+- 文件存在：main.js：通过；
+- 文件存在：src/main/main.js：通过；
+- 文件存在：src/main/preload.js：通过；
+- 文件存在：src/renderer/index.html：通过；
+- 文件存在：src/renderer/renderer.js：通过；
+- 文件存在：src/renderer/styles.css：通过；
+- 文件存在：.github/workflows/build-windows.yml：通过；
+- 文件存在：scripts/selfcheck.js：通过；
+- 文件存在：src/main/services/storage.js：通过；
+- 文件存在：src/main/services/ai-client.js：通过；
+- 文件存在：src/renderer/modules/layout-controls.js：通过；
+- 文件存在：src/renderer/modules/result-highlights.js：通过；
+- 文件存在：src/renderer/modules/candidate-data.js：通过；
+- 文件存在：src/renderer/modules/candidate-actions.js：通过；
+- 文件存在：src/renderer/modules/candidate-cards.js：通过；
+- JS语法：main.js：通过；
+- JS语法：src/main/main.js：通过；
+- JS语法：src/main/preload.js：通过；
+- JS语法：src/renderer/renderer.js：通过；
+- JS语法：scripts/selfcheck.js：通过；
+- JS语法：src/renderer/modules/layout-controls.js：通过；
+- JS语法：src/renderer/modules/result-highlights.js：通过；
+- JS语法：src/renderer/modules/candidate-data.js：通过；
+- JS语法：src/renderer/modules/candidate-actions.js：通过；
+- JS语法：src/renderer/modules/candidate-cards.js：通过；
+- JS语法：src/main/services/storage.js：通过；
+- JS语法：src/main/services/ai-client.js：通过；
+- HTML ID 与前端/模块调用对应：通过；[]
+- 按钮绑定：通过；[]
+- IPC接口对应：通过；[]
+- 主进程storage模块拆分：通过；存在
+- 主进程AI客户端模块拆分：通过；存在
+- 渲染布局控制模块：通过；存在
+- 渲染结果高亮模块：通过；存在
+- 渲染候选人数据模块：通过；存在
+- 渲染快捷操作模块：通过；存在
+- 渲染候选人卡片模块：通过；存在
+- HTML模块加载顺序：通过；存在
+- 历史误替换残留：通过；{'path.常驻name': 0, 'get深度求索Models': 0, 'export排行榜表格': 0, 'total令牌s': 0, 'prompt令牌s': 0, '兼容兼容': 0, 'async async function': 0, 'm销售': 0, 'm成交': 0}
+- 默认岗位明确指向词清除：通过；{'腾讯': 0, 'Tencent': 0, '法国': 0, '巴黎': 0, '法语': 0, '南欧': 0, '云厂': 0, '云计算': 0}
+- JSON原子写入：通过；通过
+- API Key safeStorage加密：通过；通过
+- 候选人数据与排行榜分离：通过；通过
+- npm selfcheck脚本：通过；通过
+- PDF/Word/TXT读取：通过；通过
+- 模型选择非空兜底：通过；通过
+- 危险操作二次确认：通过；通过
+- 证据置信度校准：通过；通过
+- 严格度隔离排行榜：通过；通过
+- 排行榜不显示单人Token：通过；通过
+- Token合并：通过；通过
+- 双通道OCR预提取：通过；通过
+- 设置区折叠：通过；通过
+- 左侧折叠：通过；通过
+- Ctrl缩放：通过；通过
+- 结果关键信息突出：通过；通过
+- 项目内候选人卡片：通过；通过
+- 快捷复制/导出/标记：通过；通过
+- GitHub Actions：通过；通过
+- 版本号：通过；通过
+- scripts/selfcheck.js运行：通过；：src/renderer/modules/candidate-actions.js
+通过 - JS语法：src/renderer/modules/candidate-cards.js
+通过 - JS语法：src/main/services/storage.js
+通过 - JS语法：src/main/services/ai-client.js
+通过 - 历史误替换残留
+通过 - HTML ID 与前端调用对应
+通过 - 按钮绑定
+通过 - IPC接口对应
+通过 - 原子写入
+通过 - safeStorage密钥存储
+通过 - 候选人卡片与排行榜数据分离
+通过 - 双通道OCR预提取
+通过 - 严格度隔离排行榜
+通过 - ChatGPT式候选人卡片
+通过 - GitHub Actions工作流
+通过 - 渲染模块拆分
+通过 - 主进程服务拆分
+通过 - 版本号
+
+自检通过：全部检查项通过。
+
+
+五、仍需安装后人工测试
+1. GitHub Actions 打包是否通过。
+2. Windows 安装后是否能打开并显示 v1.0.30。
+3. 设置区折叠、左侧折叠、Ctrl缩放是否正常。
+4. 上传 PDF / Word / TXT / 图片 OCR 是否正常。
+5. 完成一次评分后，候选人卡片、排行榜、快捷复制、快捷标记是否同步。
+6. 备份导入导出是否正常。
+
+六、说明
+本版已经完成模块化拆分，但仍保持传统 script 方式加载，避免一次性改成 ES Module 带来 Electron CSP、全局状态和历史函数调用兼容风险。下一阶段如继续优化，可以再做更彻底的状态管理和 E2E 测试。

@@ -216,3 +216,24 @@ v1.0.29：
 - API Key safeStorage 加密保存
 - 候选人卡片与排行榜数据分离
 - 新增 npm run selfcheck / npm run check
+
+
+v1.0.30：
+- 模块化拆分版
+- 主进程拆分 storage / ai-client
+- 渲染进程拆分 layout / result-highlights / candidate-data / candidate-actions / candidate-cards
+- 更新 scripts/selfcheck.js
+
+
+v1.0.31：
+- 候选人归类增加颜色标签
+- 排行榜归类下拉框按类别变色
+- 项目内候选人卡片归类字段按类别显示彩色标签
+
+
+v1.0.32：
+- 评分可信度增强版
+- 同候选人历史评分对比
+- 分差超过5分提醒人工复核
+- 证据覆盖率
+- 缺少原文依据的判断列表

@@ -13,7 +13,14 @@ const files = {
   preload: 'src/main/preload.js',
   html: 'src/renderer/index.html',
   renderer: 'src/renderer/renderer.js',
+  layoutModule: 'src/renderer/modules/layout-controls.js',
+  resultHighlightsModule: 'src/renderer/modules/result-highlights.js',
+  candidateDataModule: 'src/renderer/modules/candidate-data.js',
+  candidateActionsModule: 'src/renderer/modules/candidate-actions.js',
+  candidateCardsModule: 'src/renderer/modules/candidate-cards.js',
   css: 'src/renderer/styles.css',
+  storageService: 'src/main/services/storage.js',
+  aiClientService: 'src/main/services/ai-client.js',
   workflow: '.github/workflows/build-windows.yml'
 };
 
@@ -26,7 +33,7 @@ for (const file of Object.values(files)) {
   check(`文件存在：${file}`, exists(file));
 }
 
-for (const file of [files.mainEntry, files.main, files.preload, files.renderer]) {
+for (const file of [files.mainEntry, files.main, files.preload, files.renderer, files.layoutModule, files.resultHighlightsModule, files.candidateDataModule, files.candidateActionsModule, files.candidateCardsModule, files.storageService, files.aiClientService]) {
   try {
     execFileSync(process.execPath, ['--check', path.join(root, file)], { stdio: 'pipe' });
     check(`JS语法：${file}`, true);
@@ -41,6 +48,13 @@ const preload = read(files.preload);
 const html = read(files.html);
 const renderer = read(files.renderer);
 const css = read(files.css);
+const layoutModule = read(files.layoutModule);
+const resultHighlightsModule = read(files.resultHighlightsModule);
+const candidateDataModule = read(files.candidateDataModule);
+const candidateActionsModule = read(files.candidateActionsModule);
+const candidateCardsModule = read(files.candidateCardsModule);
+const storageService = read(files.storageService);
+const aiClientService = read(files.aiClientService);
 const workflow = read(files.workflow);
 
 const badTerms = [
@@ -52,7 +66,7 @@ const badTerms = [
   '兼容兼容',
   'async async function'
 ];
-const badFound = badTerms.filter(t => main.includes(t) || preload.includes(t) || html.includes(t) || renderer.includes(t));
+const badFound = badTerms.filter(t => [main, preload, html, renderer, layoutModule, resultHighlightsModule, candidateDataModule, candidateActionsModule, candidateCardsModule, storageService, aiClientService].some(text => text.includes(t)));
 check('历史误替换残留', badFound.length === 0, badFound.join(', '));
 
 const ids = new Set([...html.matchAll(/id="([^"]+)"/g)].map(m => m[1]));
@@ -71,14 +85,20 @@ const handlers = new Set([...main.matchAll(/ipcMain\.handle\(['"]([^'"]+)/g)].ma
 const missingHandlers = preloadChannels.filter(ch => !handlers.has(ch));
 check('IPC接口对应', missingHandlers.length === 0, missingHandlers.join(', '));
 
-check('原子写入', main.includes('.tmp-') && main.includes('renameSync'));
+check('原子写入', storageService.includes('.tmp-') && storageService.includes('renameSync'));
 check('safeStorage密钥存储', main.includes('safeStorage') && main.includes('apiKeyEncrypted') && main.includes('getStoredApiKey'));
-check('候选人卡片与排行榜数据分离', renderer.includes('let candidates') && renderer.includes('migrateCandidates') && renderer.includes('p.candidates'));
+check('候选人卡片与排行榜数据分离', renderer.includes('let candidates') && candidateDataModule.includes('migrateCandidates') && renderer.includes('p.candidates'));
 check('双通道OCR预提取', main.includes('async function ocrImageFile') && main.includes('ocrBlocks') && !main.includes('image_url'));
 check('严格度隔离排行榜', renderer.includes('String(x.strictnessLevel || 3) !== strictness'));
-check('ChatGPT式候选人卡片', html.includes('candidateCards') && renderer.includes('renderCandidateCards') && css.includes('analysis-card'));
+check('ChatGPT式候选人卡片', html.includes('candidateCards') && candidateCardsModule.includes('renderCandidateCards') && css.includes('analysis-card'));
 check('GitHub Actions工作流', workflow.includes('Build Windows Installer') && workflow.includes('electron-builder'));
-check('版本号', pkg.version === '1.0.29' && html.includes('v1.0.29'));
+check('归类颜色标签', candidateDataModule.includes('categoryClass') && candidateCardsModule.includes('categoryBadgeHtml') && css.includes('category-priority') && css.includes('category-reject'));
+check('评分历史对比', candidateDataModule.includes('buildScoreStability') && renderer.includes('scoreHistory') && candidateCardsModule.includes('scoreDeltaWarning'));
+check('评分差异提醒', resultHighlightsModule.includes('renderScoreTrust') && resultHighlightsModule.includes('maxDelta') && html.includes('scoreDeltaText'));
+check('证据覆盖率', resultHighlightsModule.includes('calculateEvidenceCoverage') && html.includes('evidenceCoverageText') && css.includes('score-trust-panel'));
+check('渲染模块拆分', html.includes('modules/layout-controls.js') && candidateCardsModule.includes('renderCandidateCards') && resultHighlightsModule.includes('renderPriorityHighlights'));
+check('主进程服务拆分', main.includes("./services/storage") && main.includes("./services/ai-client") && storageService.includes('module.exports') && aiClientService.includes('module.exports'));
+check('版本号', pkg.version === '1.0.32' && html.includes('v1.0.32'));
 
 for (const r of results) {
   console.log(`${r.ok ? '通过' : '失败'} - ${r.name}${r.detail ? `：${r.detail}` : ''}`);

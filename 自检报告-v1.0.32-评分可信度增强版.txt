@@ -1,0 +1,79 @@
+简历岗位匹配评分系统 v1.0.32 评分可信度增强版自检报告
+
+一、本次更新
+1. 新增同候选人历史评分对比。
+2. 新增评分差异提醒：同候选人历史评分最大分差超过 5 分时提示人工复核。
+3. 新增证据覆盖率：统计必要项、加分项、一票否决等关键判断中有明确原文依据的比例。
+4. 新增缺少原文依据的判断列表，帮助人工快速补核。
+5. 项目内候选人卡片新增历史评分、评分波动、证据覆盖字段。
+6. 继续保留 v1.0.31 的候选人归类颜色标签和 v1.0.30 的模块化拆分结构。
+
+二、规则说明
+同候选人识别：基于候选人姓名归一化后，在当前项目 candidates 中查找历史记录。
+评分差异提醒：当前评分与同候选人历史记录最大分差超过 5 分时标红。
+证据覆盖率：必要项、加分项、一票否决检查中 evidence 字段存在有效内容的比例。
+缺少依据列表：展示最多 8 条缺少明确原文依据的关键判断。
+
+三、自检结果
+- JS语法：main.js：通过；
+- JS语法：src/main/main.js：通过；
+- JS语法：src/main/preload.js：通过；
+- JS语法：src/renderer/renderer.js：通过；
+- JS语法：scripts/selfcheck.js：通过；
+- JS语法：src/renderer/modules/layout-controls.js：通过；
+- JS语法：src/renderer/modules/result-highlights.js：通过；
+- JS语法：src/renderer/modules/candidate-data.js：通过；
+- JS语法：src/renderer/modules/candidate-actions.js：通过；
+- JS语法：src/renderer/modules/candidate-cards.js：通过；
+- JS语法：src/main/services/storage.js：通过；
+- JS语法：src/main/services/ai-client.js：通过；
+- HTML ID 与前端/模块调用对应：通过；[]
+- 按钮绑定：通过；[]
+- IPC接口对应：通过；[]
+- 历史误替换残留：通过；{'path.常驻name': 0, 'get深度求索Models': 0, 'export排行榜表格': 0, 'total令牌s': 0, 'prompt令牌s': 0, '兼容兼容': 0, 'async async function': 0, 'm销售': 0, 'm成交': 0}
+- 评分历史对比：通过；通过
+- 评分差异提醒：通过；通过
+- 证据覆盖率：通过；通过
+- 缺少依据列表：通过；通过
+- 归类颜色保留：通过；通过
+- 模块化拆分保留：通过；通过
+- JSON原子写入：通过；通过
+- API Key safeStorage：通过；通过
+- 双通道OCR预提取：通过；通过
+- 严格度隔离排行榜：通过；通过
+- 项目内候选人卡片：通过；通过
+- 版本号：通过；通过
+- scripts/selfcheck.js运行：通过；JS语法：src/renderer/modules/candidate-data.js
+通过 - JS语法：src/renderer/modules/candidate-actions.js
+通过 - JS语法：src/renderer/modules/candidate-cards.js
+通过 - JS语法：src/main/services/storage.js
+通过 - JS语法：src/main/services/ai-client.js
+通过 - 历史误替换残留
+通过 - HTML ID 与前端调用对应
+通过 - 按钮绑定
+通过 - IPC接口对应
+通过 - 原子写入
+通过 - safeStorage密钥存储
+通过 - 候选人卡片与排行榜数据分离
+通过 - 双通道OCR预提取
+通过 - 严格度隔离排行榜
+通过 - ChatGPT式候选人卡片
+通过 - GitHub Actions工作流
+通过 - 归类颜色标签
+通过 - 评分历史对比
+通过 - 评分差异提醒
+通过 - 证据覆盖率
+通过 - 渲染模块拆分
+通过 - 主进程服务拆分
+通过 - 版本号
+
+自检通过：全部检查项通过。
+
+
+四、建议人工测试
+1. 对同一个候选人进行两次评分，确认第二次结果页出现历史评分对比。
+2. 如果两次评分分差超过 5 分，确认评分差异提醒变为红色。
+3. 检查证据覆盖率是否显示百分比。
+4. 检查缺少原文依据的判断列表是否能显示。
+5. 检查项目内候选人卡片是否显示历史评分、评分波动、证据覆盖。
+6. 检查归类颜色标签、排行榜严格度隔离、双通道OCR预提取是否继续正常。

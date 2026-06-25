@@ -60,7 +60,7 @@
     <main class="content">
       <section class="hero panel">
         <div>
-          <div class="eyebrow">本地简历筛选工具｜<span id="appVersionBadge">v1.0.29</span></div>
+          <div class="eyebrow">本地简历筛选工具｜<span id="appVersionBadge">v1.0.32</span></div>
           <div class="project-current">当前项目：<strong id="activeProjectName">默认项目</strong></div>
           <h1>简历岗位匹配评分系统</h1>
           <p>左侧是功能区与项目列表，右侧是操作区。支持设置折叠、页面缩放、双通道OCR预提取、严格度隔离排行榜与本地数据备份。</p>
@@ -325,6 +325,38 @@
           <ol id="importantEvidenceList"></ol>
         </div>
 
+        <div class="score-trust-panel" id="scoreTrustPanel">
+          <div class="score-trust-head">
+            <div>
+              <strong>评分可信度复核</strong>
+              <span>用于发现同候选人重复评分波动、证据不足和需要人工复核的判断</span>
+            </div>
+            <span class="trust-badge" id="trustBadge">待生成</span>
+          </div>
+          <div class="trust-grid">
+            <div class="trust-card" id="scoreHistoryCard">
+              <span>同候选人历史评分</span>
+              <strong id="scoreHistoryText">暂无历史</strong>
+              <small id="scoreHistoryDetail">完成多次评分后自动对比</small>
+            </div>
+            <div class="trust-card" id="scoreDeltaCard">
+              <span>评分差异提醒</span>
+              <strong id="scoreDeltaText">暂无波动</strong>
+              <small id="scoreDeltaDetail">同候选人分差超过5分会提示人工复核</small>
+            </div>
+            <div class="trust-card" id="evidenceCoverageCard">
+              <span>证据覆盖率</span>
+              <strong id="evidenceCoverageText">0%</strong>
+              <small id="evidenceCoverageDetail">关键判断中有原文依据的比例</small>
+            </div>
+          </div>
+          <div class="evidence-gap-box" id="evidenceGapBox">
+            <strong>缺少原文依据的判断</strong>
+            <ul id="evidenceGapList"></ul>
+          </div>
+        </div>
+
+
         <div class="metrics">
           <div><span>核心经验</span><strong id="mSales">0</strong></div>
           <div><span>行业背景</span><strong id="mIndustry">0</strong></div>
@@ -568,6 +600,11 @@
   </div>
 
 
+  <script src="modules/layout-controls.js"></script>
+  <script src="modules/result-highlights.js"></script>
+  <script src="modules/candidate-data.js"></script>
+  <script src="modules/candidate-actions.js"></script>
+  <script src="modules/candidate-cards.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

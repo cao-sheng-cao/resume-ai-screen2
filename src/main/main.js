@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
+const { dataPath, readJson, writeJson, removeJson } = require('./services/storage');
+const { requestDeepSeek } = require('./services/ai-client');
 
 const APP_NAME = '简历岗位匹配评分系统';
 
@@ -43,102 +45,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-
-function dataPath(filename) {
-  const dir = app.getPath('userData');
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  return path.join(dir, filename);
-}
-
-function readJson(filename, fallback) {
-  try {
-    const file = dataPath(filename);
-    if (!fs.existsSync(file)) return fallback;
-    return JSON.parse(fs.readFileSync(file, 'utf-8'));
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJson(filename, data) {
-  const target = dataPath(filename);
-  const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
-  const payload = JSON.stringify(data, null, 2);
-  fs.writeFileSync(tmp, payload, 'utf-8');
-  fs.renameSync(tmp, target);
-  return true;
-}
-
-function removeJson(filename) {
-  const file = dataPath(filename);
-  if (fs.existsSync(file)) fs.unlinkSync(file);
-  return true;
-}
-
-function canUseSafeStorage() {
-  try {
-    return Boolean(safeStorage?.isEncryptionAvailable?.());
-  } catch {
-    return false;
-  }
-}
-
-function encryptSecret(value) {
-  const text = String(value || '');
-  if (!text) return '';
-  if (!canUseSafeStorage()) return '';
-  return safeStorage.encryptString(text).toString('base64');
-}
-
-function decryptSecret(base64) {
-  const value = String(base64 || '');
-  if (!value || !canUseSafeStorage()) return '';
-  try {
-    return safeStorage.decryptString(Buffer.from(value, 'base64'));
-  } catch {
-    return '';
-  }
-}
-
-function getStoredApiKey(settings = readJson('settings.json', {})) {
-  if (settings.apiKeyEncrypted) {
-    const decrypted = decryptSecret(settings.apiKeyEncrypted);
-    if (decrypted) return decrypted;
-  }
-  return String(settings.apiKey || '');
-}
-
-function setStoredApiKey(settings, key) {
-  const cleanKey = String(key || '').trim();
-  delete settings.apiKey;
-  delete settings.apiKeyEncrypted;
-  settings.apiKeyStorage = 'none';
-
-  if (!cleanKey) return settings;
-
-  if (canUseSafeStorage()) {
-    const encrypted = encryptSecret(cleanKey);
-    if (encrypted) {
-      settings.apiKeyEncrypted = encrypted;
-      settings.apiKeyStorage = 'safeStorage';
-      return settings;
-    }
-  }
-
-  // safeStorage 不可用时才回退到明文，保证旧系统仍可使用。
-  settings.apiKey = cleanKey;
-  settings.apiKeyStorage = 'plain';
-  return settings;
-}
-
-function removeStoredApiKey(settings) {
-  delete settings.apiKey;
-  delete settings.apiKeyEncrypted;
-  settings.apiKeyStorage = 'none';
-  return settings;
-}
-
-
 
 let currentZoomFactor = 1;
 
@@ -362,41 +268,6 @@ ${imageCount}
   "uncertainFields": ["需要人工核实的信息"],
   "normalizedResumeText": "把以上信息整理为一份完整候选人资料，适合后续与岗位条件进行深度匹配评分，控制在3000字以内。"
 }`.trim();
-}
-
-async function requestDeepSeek({ apiKey, modelConfig, messages, temperature = 0.1, json = true }) {
-  const requestBody = {
-    model: modelConfig.id,
-    messages,
-    temperature,
-    stream: false
-  };
-
-  if (json) requestBody.response_format = { type: 'json_object' };
-  if (modelConfig.thinking === 'enabled' || modelConfig.thinking === 'disabled') {
-    requestBody.thinking = { type: modelConfig.thinking };
-  }
-
-  const response = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + apiKey
-    },
-    body: JSON.stringify(requestBody)
-  });
-
-  const raw = await response.text();
-  if (!response.ok) {
-    throw new Error('深度求索接口请求失败：' + raw.slice(0, 800));
-  }
-
-  const data = JSON.parse(raw);
-  return {
-    data,
-    content: data.choices?.[0]?.message?.content || '',
-    usage: data.usage || {}
-  };
 }
 
 const DEEPSEEK_MODELS = [

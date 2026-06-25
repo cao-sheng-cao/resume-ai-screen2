@@ -1,0 +1,76 @@
+简历岗位匹配评分系统 v1.0.31 候选人归类颜色标签版自检报告
+
+一、本次更新
+1. 候选人归类增加颜色显示。
+2. 排行榜中的归类下拉框会根据当前类别显示不同颜色。
+3. 项目内候选人卡片中的归类字段会显示为彩色标签。
+4. 支持类别：优先推进、建议推进、待复核、作为储备、不建议推进、已联系、已面试、已淘汰。
+5. 保留 v1.0.30 的模块化拆分结构、自检脚本、safeStorage、JSON原子写入、候选人/排行榜数据分离。
+
+二、颜色规则
+优先推进：绿色强调。
+建议推进：浅绿色。
+待复核：黄色提醒。
+作为储备：蓝灰色。
+不建议推进：红色风险。
+已联系：蓝色。
+已面试：紫色。
+已淘汰：灰色。
+
+三、自检结果
+- JS语法：main.js：通过；
+- JS语法：src/main/main.js：通过；
+- JS语法：src/main/preload.js：通过；
+- JS语法：src/renderer/renderer.js：通过；
+- JS语法：scripts/selfcheck.js：通过；
+- JS语法：src/renderer/modules/layout-controls.js：通过；
+- JS语法：src/renderer/modules/result-highlights.js：通过；
+- JS语法：src/renderer/modules/candidate-data.js：通过；
+- JS语法：src/renderer/modules/candidate-actions.js：通过；
+- JS语法：src/renderer/modules/candidate-cards.js：通过；
+- JS语法：src/main/services/storage.js：通过；
+- JS语法：src/main/services/ai-client.js：通过；
+- HTML ID 与前端/模块调用对应：通过；[]
+- 按钮绑定：通过；[]
+- IPC接口对应：通过；[]
+- 历史误替换残留：通过；{'path.常驻name': 0, 'get深度求索Models': 0, 'export排行榜表格': 0, 'total令牌s': 0, 'prompt令牌s': 0, '兼容兼容': 0, 'async async function': 0, 'm销售': 0, 'm成交': 0}
+- 归类颜色函数：通过；通过
+- 排行榜归类颜色下拉：通过；通过
+- 候选人卡片归类颜色标签：通过；通过
+- 归类颜色CSS：通过；通过
+- 模块化拆分保留：通过；通过
+- JSON原子写入：通过；通过
+- API Key safeStorage：通过；通过
+- 双通道OCR预提取：通过；通过
+- 严格度隔离排行榜：通过；通过
+- 项目内候选人卡片：通过；通过
+- 版本号：通过；通过
+- scripts/selfcheck.js运行：通过；r/modules/candidate-actions.js
+通过 - JS语法：src/renderer/modules/candidate-cards.js
+通过 - JS语法：src/main/services/storage.js
+通过 - JS语法：src/main/services/ai-client.js
+通过 - 历史误替换残留
+通过 - HTML ID 与前端调用对应
+通过 - 按钮绑定
+通过 - IPC接口对应
+通过 - 原子写入
+通过 - safeStorage密钥存储
+通过 - 候选人卡片与排行榜数据分离
+通过 - 双通道OCR预提取
+通过 - 严格度隔离排行榜
+通过 - ChatGPT式候选人卡片
+通过 - GitHub Actions工作流
+通过 - 归类颜色标签
+通过 - 渲染模块拆分
+通过 - 主进程服务拆分
+通过 - 版本号
+
+自检通过：全部检查项通过。
+
+
+四、建议人工测试
+1. 打开软件确认版本号 v1.0.31。
+2. 完成一次候选人评分并加入项目候选人卡片。
+3. 在排行榜中切换候选人归类，确认下拉框颜色同步变化。
+4. 回到项目内候选人卡片，确认归类标签颜色同步变化。
+5. 测试优先推进、建议推进、待复核、作为储备、不建议推进、已联系、已面试、已淘汰八类颜色。

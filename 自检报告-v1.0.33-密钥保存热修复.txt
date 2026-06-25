@@ -1,0 +1,80 @@
+简历岗位匹配评分系统 v1.0.33 密钥保存错误热修复报告
+
+一、问题现象
+用户在保存接口密钥时出现错误：ReferenceError: setStoredApiKey is not defined。
+
+二、原因
+v1.0.29 之后为了降低 vibe slop 风险，把 API Key 存储逻辑改为 safeStorage 加密保存；v1.0.30 模块化拆分后，main.js 中仍调用 setStoredApiKey / getStoredApiKey / removeStoredApiKey，但相关函数没有作为模块正确引入，导致运行时报 ReferenceError。
+
+三、本次修复
+1. 新增 src/main/services/secure-settings.js。
+2. 将 canUseSafeStorage、getStoredApiKey、setStoredApiKey、removeStoredApiKey 放入 secure-settings 模块。
+3. main.js 显式引入 secure-settings 模块。
+4. scripts/selfcheck.js 新增密钥函数导入检查，避免类似问题再次漏检。
+5. 版本号升级为 v1.0.33。
+
+四、自检结果
+- 文件存在：package.json：通过；
+- 文件存在：main.js：通过；
+- 文件存在：src/main/main.js：通过；
+- 文件存在：src/main/preload.js：通过；
+- 文件存在：src/main/services/storage.js：通过；
+- 文件存在：src/main/services/ai-client.js：通过；
+- 文件存在：src/main/services/secure-settings.js：通过；
+- 文件存在：src/renderer/index.html：通过；
+- 文件存在：src/renderer/renderer.js：通过；
+- 文件存在：src/renderer/modules/layout-controls.js：通过；
+- 文件存在：src/renderer/modules/result-highlights.js：通过；
+- 文件存在：src/renderer/modules/candidate-data.js：通过；
+- 文件存在：src/renderer/modules/candidate-actions.js：通过；
+- 文件存在：src/renderer/modules/candidate-cards.js：通过；
+- 文件存在：scripts/selfcheck.js：通过；
+- 文件存在：.github/workflows/build-windows.yml：通过；
+- JS语法：main.js：通过；
+- JS语法：src/main/main.js：通过；
+- JS语法：src/main/preload.js：通过；
+- JS语法：src/main/services/storage.js：通过；
+- JS语法：src/main/services/ai-client.js：通过；
+- JS语法：src/main/services/secure-settings.js：通过；
+- JS语法：src/renderer/renderer.js：通过；
+- JS语法：src/renderer/modules/layout-controls.js：通过；
+- JS语法：src/renderer/modules/result-highlights.js：通过；
+- JS语法：src/renderer/modules/candidate-data.js：通过；
+- JS语法：src/renderer/modules/candidate-actions.js：通过；
+- JS语法：src/renderer/modules/candidate-cards.js：通过；
+- JS语法：scripts/selfcheck.js：通过；
+- 修复setStoredApiKey未定义：通过；已从secure-settings模块导入
+- 修复getStoredApiKey未定义：通过；已从secure-settings模块导入
+- 修复removeStoredApiKey未定义：通过；已从secure-settings模块导入
+- 版本号：通过；1.0.33
+- scripts/selfcheck.js运行：通过；main/services/storage.js
+通过 - JS语法：src/main/services/ai-client.js
+通过 - JS语法：src/main/services/secure-settings.js
+通过 - 历史误替换残留
+通过 - HTML ID 与前端调用对应
+通过 - 按钮绑定
+通过 - IPC接口对应
+通过 - 原子写入
+通过 - safeStorage密钥存储
+通过 - 密钥函数已导入
+通过 - 候选人卡片与排行榜数据分离
+通过 - 双通道OCR预提取
+通过 - 严格度隔离排行榜
+通过 - ChatGPT式候选人卡片
+通过 - GitHub Actions工作流
+通过 - 归类颜色标签
+通过 - 评分历史对比
+通过 - 评分差异提醒
+通过 - 证据覆盖率
+通过 - 渲染模块拆分
+通过 - 主进程服务拆分
+通过 - 版本号
+
+自检通过：全部检查项通过。
+
+
+五、建议人工测试
+1. 安装 v1.0.33 后重新输入 API Key 并点击保存密钥。
+2. 点击读取已保存密钥，确认可读取。
+3. 关闭软件后重新打开，再次读取密钥。
+4. 进行一次模型连接或简历评分测试。

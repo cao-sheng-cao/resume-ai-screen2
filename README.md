@@ -518,3 +518,14 @@ Token 数据来自 DeepSeek API 返回的 `usage` 字段。
 - 项目内候选人卡片新增历史评分、评分波动、证据覆盖字段。
 - 更新 `scripts/selfcheck.js`，加入评分历史、评分差异和证据覆盖率检查。
 - 新增 `自检报告-v1.0.32-评分可信度增强版.txt`。
+
+
+## v1.0.33 密钥保存错误热修复
+
+本版本修复：
+
+- 保存接口密钥时报错：`ReferenceError: setStoredApiKey is not defined`
+- 新增 `src/main/services/secure-settings.js`
+- main.js 正确引入 `setStoredApiKey / getStoredApiKey / removeStoredApiKey`
+- 更新 `scripts/selfcheck.js`，增加密钥函数导入检查
+- 新增 `自检报告-v1.0.33-密钥保存热修复.txt`

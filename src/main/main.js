@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const { dataPath, readJson, writeJson, removeJson } = require('./services/storage');
 const { requestDeepSeek } = require('./services/ai-client');
+const { canUseSafeStorage, getStoredApiKey, setStoredApiKey, removeStoredApiKey } = require('./services/secure-settings');
 
 const APP_NAME = '简历岗位匹配评分系统';
 

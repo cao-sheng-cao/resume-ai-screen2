@@ -21,6 +21,7 @@ const files = {
   css: 'src/renderer/styles.css',
   storageService: 'src/main/services/storage.js',
   aiClientService: 'src/main/services/ai-client.js',
+  secureSettingsService: 'src/main/services/secure-settings.js',
   workflow: '.github/workflows/build-windows.yml'
 };
 
@@ -33,7 +34,7 @@ for (const file of Object.values(files)) {
   check(`文件存在：${file}`, exists(file));
 }
 
-for (const file of [files.mainEntry, files.main, files.preload, files.renderer, files.layoutModule, files.resultHighlightsModule, files.candidateDataModule, files.candidateActionsModule, files.candidateCardsModule, files.storageService, files.aiClientService]) {
+for (const file of [files.mainEntry, files.main, files.preload, files.renderer, files.layoutModule, files.resultHighlightsModule, files.candidateDataModule, files.candidateActionsModule, files.candidateCardsModule, files.storageService, files.aiClientService, files.secureSettingsService]) {
   try {
     execFileSync(process.execPath, ['--check', path.join(root, file)], { stdio: 'pipe' });
     check(`JS语法：${file}`, true);
@@ -55,6 +56,7 @@ const candidateActionsModule = read(files.candidateActionsModule);
 const candidateCardsModule = read(files.candidateCardsModule);
 const storageService = read(files.storageService);
 const aiClientService = read(files.aiClientService);
+const secureSettingsService = read(files.secureSettingsService);
 const workflow = read(files.workflow);
 
 const badTerms = [
@@ -66,7 +68,7 @@ const badTerms = [
   '兼容兼容',
   'async async function'
 ];
-const badFound = badTerms.filter(t => [main, preload, html, renderer, layoutModule, resultHighlightsModule, candidateDataModule, candidateActionsModule, candidateCardsModule, storageService, aiClientService].some(text => text.includes(t)));
+const badFound = badTerms.filter(t => [main, preload, html, renderer, layoutModule, resultHighlightsModule, candidateDataModule, candidateActionsModule, candidateCardsModule, storageService, aiClientService, secureSettingsService].some(text => text.includes(t)));
 check('历史误替换残留', badFound.length === 0, badFound.join(', '));
 
 const ids = new Set([...html.matchAll(/id="([^"]+)"/g)].map(m => m[1]));
@@ -86,7 +88,8 @@ const missingHandlers = preloadChannels.filter(ch => !handlers.has(ch));
 check('IPC接口对应', missingHandlers.length === 0, missingHandlers.join(', '));
 
 check('原子写入', storageService.includes('.tmp-') && storageService.includes('renameSync'));
-check('safeStorage密钥存储', main.includes('safeStorage') && main.includes('apiKeyEncrypted') && main.includes('getStoredApiKey'));
+check('safeStorage密钥存储', main.includes("./services/secure-settings") && secureSettingsService.includes('function setStoredApiKey') && secureSettingsService.includes('function getStoredApiKey') && secureSettingsService.includes('apiKeyEncrypted'));
+check('密钥函数已导入', main.includes('setStoredApiKey') && main.includes('getStoredApiKey') && main.includes('removeStoredApiKey') && main.includes("require('./services/secure-settings')"));
 check('候选人卡片与排行榜数据分离', renderer.includes('let candidates') && candidateDataModule.includes('migrateCandidates') && renderer.includes('p.candidates'));
 check('双通道OCR预提取', main.includes('async function ocrImageFile') && main.includes('ocrBlocks') && !main.includes('image_url'));
 check('严格度隔离排行榜', renderer.includes('String(x.strictnessLevel || 3) !== strictness'));
@@ -98,7 +101,7 @@ check('评分差异提醒', resultHighlightsModule.includes('renderScoreTrust') 
 check('证据覆盖率', resultHighlightsModule.includes('calculateEvidenceCoverage') && html.includes('evidenceCoverageText') && css.includes('score-trust-panel'));
 check('渲染模块拆分', html.includes('modules/layout-controls.js') && candidateCardsModule.includes('renderCandidateCards') && resultHighlightsModule.includes('renderPriorityHighlights'));
 check('主进程服务拆分', main.includes("./services/storage") && main.includes("./services/ai-client") && storageService.includes('module.exports') && aiClientService.includes('module.exports'));
-check('版本号', pkg.version === '1.0.32' && html.includes('v1.0.32'));
+check('版本号', pkg.version === '1.0.33' && html.includes('v1.0.33'));
 
 for (const r of results) {
   console.log(`${r.ok ? '通过' : '失败'} - ${r.name}${r.detail ? `：${r.detail}` : ''}`);

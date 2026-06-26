@@ -1,0 +1,68 @@
+简历岗位匹配评分系统 v1.0.34 一票否决一致性热修复报告
+
+一、问题判断
+用户截图中，模型一边判断候选人“没有Sales经历/命中一票否决”，一边在关键原文依据中给出 IBM Sales Negotiation、VMware selling large and complex projects、Databricks achieving and exceeding revenue targets 等销售相关证据。这不是用户翻译理解问题，而是模型输出结果存在内部矛盾，同时旧版界面把普通风险和一票否决合并展示，放大了误解。
+
+二、本次修复
+1. Prompt 新增一致性校验规则：如果简历中出现 sales、selling、revenue targets、quota、pipeline、negotiation、deal、commercial、business development、销售、营收、成交、大客户谈判等证据，不允许直接写“没有Sales经历/命中一票否决”。
+2. 主进程新增 reconcileContradictoryVeto 后处理：当模型输出“没有Sales经历并命中一票否决”，但简历/证据中存在 sales/selling/revenue/negotiation 等销售相关证据时，自动把该一票否决从“命中”降级为“待核实”。
+3. 自动写入 verificationItems，提示人工确认这些销售相关经历是否属于岗位要求的直接 Sales / Quota 责任。
+4. riskPoints 中类似“没有Sales经历”的判断会被改写为“需复核”，避免直接误伤候选人。
+5. 结果顶部卡片从“强风险 / 一票否决”改为“一票否决命中”。普通风险不会再被计入一票否决命中数量。
+6. 更新 scripts/selfcheck.js，加入一票否决一致性校验和显示口径检查。
+
+三、自检结果
+- JS语法：main.js：通过；
+- JS语法：src/main/main.js：通过；
+- JS语法：src/main/preload.js：通过；
+- JS语法：src/main/services/storage.js：通过；
+- JS语法：src/main/services/ai-client.js：通过；
+- JS语法：src/main/services/secure-settings.js：通过；
+- JS语法：src/renderer/renderer.js：通过；
+- JS语法：src/renderer/modules/layout-controls.js：通过；
+- JS语法：src/renderer/modules/result-highlights.js：通过；
+- JS语法：src/renderer/modules/candidate-data.js：通过；
+- JS语法：src/renderer/modules/candidate-actions.js：通过；
+- JS语法：src/renderer/modules/candidate-cards.js：通过；
+- JS语法：scripts/selfcheck.js：通过；
+- 一票否决一致性校验函数：通过；存在
+- Sales证据冲突自动降级：通过；存在
+- Prompt一致性规则：通过；存在
+- 一票否决显示口径修正：通过；存在
+- Consistency warnings输出：通过；存在
+- 版本号：通过；1.0.34
+- scripts/selfcheck.js运行：通过；s.js
+通过 - JS语法：src/renderer/modules/candidate-cards.js
+通过 - JS语法：src/main/services/storage.js
+通过 - JS语法：src/main/services/ai-client.js
+通过 - JS语法：src/main/services/secure-settings.js
+通过 - 历史误替换残留
+通过 - HTML ID 与前端调用对应
+通过 - 按钮绑定
+通过 - IPC接口对应
+通过 - 原子写入
+通过 - safeStorage密钥存储
+通过 - 密钥函数已导入
+通过 - 候选人卡片与排行榜数据分离
+通过 - 双通道OCR预提取
+通过 - 严格度隔离排行榜
+通过 - ChatGPT式候选人卡片
+通过 - GitHub Actions工作流
+通过 - 归类颜色标签
+通过 - 评分历史对比
+通过 - 评分差异提醒
+通过 - 证据覆盖率
+通过 - 一票否决一致性校验
+通过 - 一票否决显示口径修正
+通过 - 渲染模块拆分
+通过 - 主进程服务拆分
+通过 - 版本号
+
+自检通过：全部检查项通过。
+
+
+四、建议人工测试
+1. 用截图中的候选人重新评分。
+2. 检查是否不再显示“没有Sales经历并命中一票否决”。
+3. 如果模型仍认为 Sales 证据不够直接，应显示“待核实”，而不是“命中”。
+4. 检查顶部卡片显示为“一票否决命中”，普通风险只在说明中显示，不再合并为命中数量。

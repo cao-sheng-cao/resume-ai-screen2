@@ -1,7 +1,7 @@
 {
   "name": "resume-ai-screener-electron",
-  "version": "1.0.33",
-  "description": "本地简历岗位匹配评分系统：修复API Key保存时报setStoredApiKey未定义的问题，并补强自检。",
+  "version": "1.0.35",
+  "description": "本地简历岗位匹配评分系统：全局评分逻辑一致性审计版，统一一票否决、推进建议、风险数量和明细展示口径。",
   "main": "main.js",
   "author": "Resume AI Screener",
   "license": "MIT",

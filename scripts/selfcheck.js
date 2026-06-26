@@ -99,9 +99,13 @@ check('归类颜色标签', candidateDataModule.includes('categoryClass') && can
 check('评分历史对比', candidateDataModule.includes('buildScoreStability') && renderer.includes('scoreHistory') && candidateCardsModule.includes('scoreDeltaWarning'));
 check('评分差异提醒', resultHighlightsModule.includes('renderScoreTrust') && resultHighlightsModule.includes('maxDelta') && html.includes('scoreDeltaText'));
 check('证据覆盖率', resultHighlightsModule.includes('calculateEvidenceCoverage') && html.includes('evidenceCoverageText') && css.includes('score-trust-panel'));
+check('一票否决一致性校验', main.includes('reconcileContradictoryVeto') && main.includes('hasSalesLikeEvidence') && main.includes('claimsNoSalesExperience'));
+check('一票否决显示口径修正', html.includes('一票否决命中') && resultHighlightsModule.includes('普通风险') && resultHighlightsModule.includes('未命中一票否决'));
+check('全局评分逻辑一致性', main.includes('finalizeResultConsistency') && main.includes('logicAudit') && main.includes('riskPoints 普通风险不计入一票否决命中数量'));
+check('结论明细冲突修正', main.includes('softenContradictoryText') && main.includes('已按分数规则重新校准推进建议'));
 check('渲染模块拆分', html.includes('modules/layout-controls.js') && candidateCardsModule.includes('renderCandidateCards') && resultHighlightsModule.includes('renderPriorityHighlights'));
 check('主进程服务拆分', main.includes("./services/storage") && main.includes("./services/ai-client") && storageService.includes('module.exports') && aiClientService.includes('module.exports'));
-check('版本号', pkg.version === '1.0.33' && html.includes('v1.0.33'));
+check('版本号', pkg.version === '1.0.35' && html.includes('v1.0.35'));
 
 for (const r of results) {
   console.log(`${r.ok ? '通过' : '失败'} - ${r.name}${r.detail ? `：${r.detail}` : ''}`);

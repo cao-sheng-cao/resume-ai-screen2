@@ -1,0 +1,78 @@
+简历岗位匹配评分系统 v1.0.35 全局评分逻辑一致性审计报告
+
+一、问题判断
+用户反馈：前文显示命中一票否决，后文 vetoCheck 明细却显示四项未命中。这属于评分展示与模型结论的全局一致性问题，不是用户理解问题。
+
+二、原因
+1. 旧版顶部卡片曾把 riskPoints 普通风险、vetoCheck 待核实项和一票否决命中项合并展示，导致“普通风险”被误读为“命中一票否决”。
+2. 模型生成的 summary / recommendation 有时会引用“一票否决”措辞，但 vetoCheck 明细并没有任何 status=命中的项目。
+3. v1.0.34 已修正 Sales 证据冲突，但还需要进一步做全局层面的结论/明细一致性校验。
+
+三、本次修复
+1. 新增 finalizeResultConsistency 全局后处理。
+2. 一票否决命中数量只来自 vetoCheck 中 status 包含“命中”的项目。
+3. riskPoints 普通风险不再计入一票否决命中数量。
+4. 如果 vetoCheck 没有任何命中项，但 summary / recommendation 提到“一票否决”，系统会自动修正摘要口径。
+5. 如果推进建议因为错误的一票否决措辞被降级，但 vetoCheck 明细没有命中项，系统会按分数规则重新校准推进建议。
+6. 新增 logicAudit 字段，记录 vetoHitCount、vetoUnclearCount、vetoNotHitCount、riskPointCount 和口径规则。
+7. 更新 Prompt，要求模型输出前自检：summary、recommendation、riskPoints、vetoCheck 不能互相矛盾。
+8. 更新 scripts/selfcheck.js，加入全局评分逻辑一致性检查。
+
+四、自检结果
+- JS语法：main.js：通过；
+- JS语法：src/main/main.js：通过；
+- JS语法：src/main/preload.js：通过；
+- JS语法：src/main/services/storage.js：通过；
+- JS语法：src/main/services/ai-client.js：通过；
+- JS语法：src/main/services/secure-settings.js：通过；
+- JS语法：src/renderer/renderer.js：通过；
+- JS语法：src/renderer/modules/layout-controls.js：通过；
+- JS语法：src/renderer/modules/result-highlights.js：通过；
+- JS语法：src/renderer/modules/candidate-data.js：通过；
+- JS语法：src/renderer/modules/candidate-actions.js：通过；
+- JS语法：src/renderer/modules/candidate-cards.js：通过；
+- JS语法：scripts/selfcheck.js：通过；
+- 全局评分逻辑一致性函数：通过；存在
+- 一票否决命中口径：通过；存在
+- 推荐结论自动校准：通过；存在
+- 摘要一票否决冲突修正：通过；存在
+- 普通风险不计入一票否决卡片：通过；存在
+- logicAudit输出：通过；存在
+- 版本号：通过；1.0.35
+- scripts/selfcheck.js运行：通过；odules/candidate-cards.js
+通过 - JS语法：src/main/services/storage.js
+通过 - JS语法：src/main/services/ai-client.js
+通过 - JS语法：src/main/services/secure-settings.js
+通过 - 历史误替换残留
+通过 - HTML ID 与前端调用对应
+通过 - 按钮绑定
+通过 - IPC接口对应
+通过 - 原子写入
+通过 - safeStorage密钥存储
+通过 - 密钥函数已导入
+通过 - 候选人卡片与排行榜数据分离
+通过 - 双通道OCR预提取
+通过 - 严格度隔离排行榜
+通过 - ChatGPT式候选人卡片
+通过 - GitHub Actions工作流
+通过 - 归类颜色标签
+通过 - 评分历史对比
+通过 - 评分差异提醒
+通过 - 证据覆盖率
+通过 - 一票否决一致性校验
+通过 - 一票否决显示口径修正
+通过 - 全局评分逻辑一致性
+通过 - 结论明细冲突修正
+通过 - 渲染模块拆分
+通过 - 主进程服务拆分
+通过 - 版本号
+
+自检通过：全部检查项通过。
+
+
+五、建议人工测试
+1. 用刚才截图中的候选人重新评分。
+2. 检查顶部是否显示“一票否决命中：0项”，而不是把普通风险合并为否决命中。
+3. 检查 vetoCheck 明细如果全是未命中，summary 和 recommendation 不应再写“命中一票否决”。
+4. 如果存在待核实项，应显示为“待核实”，而不是“命中”。
+5. 检查风险点仍然保留，但应作为普通风险展示。

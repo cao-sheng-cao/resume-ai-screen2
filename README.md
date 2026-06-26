@@ -529,3 +529,30 @@ Token 数据来自 DeepSeek API 返回的 `usage` 字段。
 - main.js 正确引入 `setStoredApiKey / getStoredApiKey / removeStoredApiKey`
 - 更新 `scripts/selfcheck.js`，增加密钥函数导入检查
 - 新增 `自检报告-v1.0.33-密钥保存热修复.txt`
+
+
+## v1.0.34 一票否决一致性热修复
+
+本版本修复：
+
+- 模型一边给出 Sales / selling / revenue 等原文依据，一边判断“没有Sales经历并命中一票否决”的矛盾问题。
+- Prompt 新增一致性校验规则。
+- 主进程新增 `reconcileContradictoryVeto` 后处理。
+- 如果检测到 Sales 相关证据与“没有Sales经历”否决判断冲突，会自动降级为“待核实”。
+- 结果顶部卡片从“强风险 / 一票否决”改为“一票否决命中”，普通风险不再混入一票否决命中数量。
+- 更新 `scripts/selfcheck.js`，新增一票否决一致性校验。
+- 新增 `自检报告-v1.0.34-一票否决一致性热修复.txt`。
+
+
+## v1.0.35 全局评分逻辑一致性审计
+
+本版本继续修复评分前后矛盾问题：
+
+- 新增 `finalizeResultConsistency` 全局后处理。
+- 一票否决命中数量只来自 `vetoCheck.status` 包含“命中”的项目。
+- `riskPoints` 普通风险不再计入一票否决命中数量。
+- 如果 `vetoCheck` 没有任何命中项，但 `summary / recommendation` 提到“一票否决”，系统会自动修正口径。
+- 如果推进建议因为错误的一票否决措辞被降级，但明细没有命中项，系统会按分数规则重新校准推进建议。
+- 新增 `logicAudit` 字段，记录一票否决命中、待核实、未命中和普通风险数量。
+- 更新 Prompt 和 `scripts/selfcheck.js`，加入全局评分逻辑一致性检查。
+- 新增 `自检报告-v1.0.35-全局评分逻辑一致性审计.txt`。

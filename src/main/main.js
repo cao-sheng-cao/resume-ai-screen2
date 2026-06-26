@@ -423,6 +423,119 @@ function normalizeChecks(value) {
 }
 
 
+
+function containsAnyTerm(text, terms) {
+  const s = String(text || '').toLowerCase();
+  return terms.some(t => s.includes(String(t).toLowerCase()));
+}
+
+function hasSalesLikeEvidence(text) {
+  const terms = [
+    'sales',
+    'selling',
+    'sell ',
+    'sold ',
+    'revenue target',
+    'revenue targets',
+    'quota',
+    'pipeline',
+    'negotiation',
+    'deal',
+    'deals',
+    'commercial',
+    'business development',
+    'account executive',
+    'sales manager',
+    '销售',
+    '售卖',
+    '售前销售',
+    '商务拓展',
+    '业务拓展',
+    '营收',
+    '收入目标',
+    '销售目标',
+    '销售额',
+    '客户拓展',
+    '成交',
+    '合同',
+    '谈判',
+    '大客户'
+  ];
+  return containsAnyTerm(text, terms);
+}
+
+function claimsNoSalesExperience(item) {
+  const text = [
+    item?.item,
+    item?.status,
+    item?.evidence,
+    item?.reason
+  ].join(' ').toLowerCase();
+
+  const salesTerms = ['sales', 'selling', 'sell', 'revenue', 'quota', 'pipeline', '销售', '售卖', '营收', '收入', '客户拓展', '成交', '商务拓展'];
+  const negativeTerms = ['没有', '无', '缺少', '不具备', '未体现', '未显示', 'no ', 'not ', 'lack', 'without'];
+
+  return containsAnyTerm(text, salesTerms) && containsAnyTerm(text, negativeTerms);
+}
+
+function reconcileContradictoryVeto(result, contextText = '') {
+  const outputEvidenceCorpus = [
+    contextText,
+    ...(Array.isArray(result?.evidenceQuotes) ? result.evidenceQuotes : []),
+    ...(Array.isArray(result?.matchedPoints) ? result.matchedPoints : []),
+    ...(Array.isArray(result?.riskPoints) ? result.riskPoints : []),
+    ...(Array.isArray(result?.missingPoints) ? result.missingPoints : [])
+  ].join('\n');
+
+  const warnings = [];
+  const salesEvidenceExists = hasSalesLikeEvidence(outputEvidenceCorpus);
+  const vetoCheck = Array.isArray(result?.vetoCheck) ? result.vetoCheck : [];
+
+  if (!salesEvidenceExists) {
+    return { ...result, consistencyWarnings: arr(result?.consistencyWarnings) };
+  }
+
+  const fixedVeto = vetoCheck.map(item => {
+    const status = String(item?.status || '');
+    if (status.includes('命中') && claimsNoSalesExperience(item)) {
+      const originalReason = String(item.reason || '');
+      warnings.push('系统发现简历中存在 sales/selling/revenue/negotiation 等销售相关证据，但模型同时判定“没有Sales经历”并命中一票否决。已自动降级为待核实，请人工确认是否为岗位要求的直接销售责任。');
+      return {
+        ...item,
+        status: '待核实',
+        evidence: item.evidence && item.evidence !== '无明确证据'
+          ? item.evidence
+          : '存在销售相关表达，需要人工确认是否满足直接Sales/Quota要求。',
+        reason: `原判断可能与简历销售相关证据冲突，不能直接按一票否决处理。${originalReason ? '原原因：' + originalReason : ''}`,
+        confidence: Math.min(Number(item.confidence || 55), 55)
+      };
+    }
+    return item;
+  });
+
+  const riskPoints = arr(result?.riskPoints).map(x => {
+    const s = String(x || '');
+    if (claimsNoSalesExperience({ item: s, reason: s }) && salesEvidenceExists) {
+      return `【需复核】${s}（注意：简历中存在 sales/selling/revenue/negotiation 等销售相关证据，不能直接等同于“无Sales经历”。）`;
+    }
+    return s;
+  });
+
+  const verificationItems = [
+    ...arr(result?.verificationItems),
+    ...warnings
+  ];
+
+  return {
+    ...result,
+    vetoCheck: fixedVeto,
+    riskPoints,
+    verificationItems: [...new Set(verificationItems)],
+    consistencyWarnings: [...new Set([...(arr(result?.consistencyWarnings)), ...warnings])]
+  };
+}
+
+
 function normalizeCandidateProfile(profile) {
   const p = profile && typeof profile === 'object' ? profile : {};
   const timeline = Array.isArray(p.educationTimeline) ? p.educationTimeline.map(x => String(x)).filter(Boolean) : [];
@@ -439,7 +552,100 @@ function normalizeCandidateProfile(profile) {
 }
 
 
-function normalizeResult(data, passLine) {
+
+function isVetoHit(item) {
+  return String(item?.status || '').includes('命中');
+}
+
+function isVetoUnclear(item) {
+  return String(item?.status || '').includes('待核实');
+}
+
+function chooseRecommendationByScore(score, passLine) {
+  if (score >= 85) return '优先推进';
+  if (score >= passLine) return '建议推进';
+  if (score >= 65) return '作为储备';
+  return '不建议推进';
+}
+
+function containsVetoLanguage(text) {
+  return /一票否决|否决|没有\s*Sales|无\s*Sales|没有销售|无销售|缺少销售|不具备销售/i.test(String(text || ''));
+}
+
+function softenContradictoryText(text, vetoHitCount, vetoUnclearCount) {
+  let s = String(text || '');
+  if (!s || vetoHitCount > 0) return s;
+
+  s = s
+    .replace(/命中一票否决/g, '存在一票否决待核实风险')
+    .replace(/一票否决\s*[：:]\s*[1-9]\d*\s*项/g, `一票否决命中：0项，待核实：${vetoUnclearCount}项`)
+    .replace(/一票否决\s*[1-9]\d*\s*项/g, `一票否决命中0项，待核实${vetoUnclearCount}项`)
+    .replace(/因一票否决/g, '因关键风险待核实')
+    .replace(/直接否决/g, '需人工复核');
+
+  return s;
+}
+
+function finalizeResultConsistency(result, passLine) {
+  const vetoCheck = Array.isArray(result?.vetoCheck) ? result.vetoCheck : [];
+  const vetoHitCount = vetoCheck.filter(isVetoHit).length;
+  const vetoUnclearCount = vetoCheck.filter(isVetoUnclear).length;
+  const warnings = arr(result?.consistencyWarnings);
+
+  let recommendation = String(result.recommendation || chooseRecommendationByScore(result.score, passLine));
+  let level = String(result.level || '');
+  let summary = String(result.summary || '');
+
+  const recMentionsVeto = containsVetoLanguage(recommendation);
+  const summaryMentionsVeto = containsVetoLanguage(summary);
+
+  if (vetoHitCount === 0) {
+    if (recMentionsVeto && Number(result.score || 0) >= 65) {
+      recommendation = chooseRecommendationByScore(Number(result.score || 0), passLine);
+      warnings.push('系统发现推荐结论提到一票否决，但 vetoCheck 明细没有任何“命中”项，已按分数规则重新校准推进建议。');
+    }
+
+    if (summaryMentionsVeto) {
+      summary = softenContradictoryText(summary, vetoHitCount, vetoUnclearCount);
+      warnings.push('系统发现摘要中提到一票否决，但 vetoCheck 明细没有任何“命中”项，已修正摘要口径。');
+    }
+  } else {
+    if (recommendation === '优先推进' || recommendation === '建议推进') {
+      recommendation = Number(result.score || 0) >= 65 ? '作为储备' : '不建议推进';
+      warnings.push('系统发现存在一票否决命中项，但推进建议偏积极，已自动降级。');
+    }
+  }
+
+  const riskPoints = arr(result.riskPoints).map(x => softenContradictoryText(x, vetoHitCount, vetoUnclearCount));
+  const missingPoints = arr(result.missingPoints).map(x => softenContradictoryText(x, vetoHitCount, vetoUnclearCount));
+
+  const logicAudit = {
+    vetoHitCount,
+    vetoUnclearCount,
+    vetoNotHitCount: vetoCheck.filter(x => String(x?.status || '').includes('未命中')).length,
+    riskPointCount: riskPoints.length,
+    missingPointCount: missingPoints.length,
+    rule: '一票否决命中数量只来自 vetoCheck.status 包含“命中”的项目；riskPoints 普通风险不计入一票否决命中数量。',
+    warning: vetoHitCount === 0 && (recMentionsVeto || summaryMentionsVeto)
+      ? '已发现并修正“一票否决结论”和 vetoCheck 明细不一致的问题。'
+      : ''
+  };
+
+  return {
+    ...result,
+    recommendation,
+    level,
+    summary,
+    riskPoints,
+    missingPoints,
+    consistencyWarnings: [...new Set(warnings)],
+    logicAudit
+  };
+}
+
+
+function normalizeResult(data, passLine, contextText = '') {
+  data = reconcileContradictoryVeto(data, contextText);
   const score = clamp(data?.score ?? 0, 0, 100);
   const confidence = calibrateConfidence(data, data?.confidence ?? 0);
 
@@ -459,7 +665,7 @@ function normalizeResult(data, passLine) {
     else recommendation = '不建议推进';
   }
 
-  return {
+  const normalized = {
     candidateName: data?.candidateName || data?.candidateProfile?.nameFromResume || '待识别',
     candidateProfile: normalizeCandidateProfile(data?.candidateProfile),
     score,
@@ -479,6 +685,7 @@ function normalizeResult(data, passLine) {
     riskPoints: arr(data?.riskPoints),
     missingPoints: arr(data?.missingPoints),
     verificationItems: arr(data?.verificationItems),
+    consistencyWarnings: arr(data?.consistencyWarnings),
     interviewQuestions: arr(data?.interviewQuestions),
     evidenceQuotes: arr(data?.evidenceQuotes),
     scoreBreakdown: {
@@ -502,6 +709,8 @@ function normalizeResult(data, passLine) {
     tokenUsageNote: String(data?.tokenUsageNote || ''),
     createdAt: new Date().toISOString()
   };
+
+  return finalizeResultConsistency(normalized, passLine);
 }
 
 function buildPrompt(payload) {
@@ -521,9 +730,18 @@ function buildPrompt(payload) {
 4. 对低置信度、证据不足、PDF读取可能不完整的情况，要写入 verificationItems。
 5. 评分要严格按照岗位标准，不要因为简历写得漂亮就放宽硬性要求。
 6. 输出必须是合法 JSON，不要输出 Markdown。
-7. 必须尽量识别候选人姓名，并在 candidateProfile 中给出大致年龄推断。
-8. 年龄推断只能基于简历里的本科/硕士/博士年份、毕业年份、第一份全职工作年份、累计工作年限等信息；不得凭空编造。
-9. 年龄只输出“约xx岁”或“约xx-xx岁”这类粗略范围，并写明推断依据与置信度；信息不足时写“待推断”。
+7. 全局结论必须和明细一致：如果 vetoCheck 全部是“未命中/待核实”，summary、recommendation、riskPoints 不能写“命中一票否决”；riskPoints 只是普通风险，不能等同于一票否决。
+8. 必须尽量识别候选人姓名，并在 candidateProfile 中给出大致年龄推断。
+9. 年龄推断只能基于简历里的本科/硕士/博士年份、毕业年份、第一份全职工作年份、累计工作年限等信息；不得凭空编造。
+10. 年龄只输出“约xx岁”或“约xx-xx岁”这类粗略范围，并写明推断依据与置信度；信息不足时写“待推断”。
+
+【一致性校验规则：必须严格执行】
+- 一票否决项只有在简历原文明确证明该否决条件成立时，才能写“命中”。
+- 不能因为候选人标题不是 Sales，就直接判定“没有 Sales 经历”。
+- 如果简历中出现 sales、selling、revenue targets、quota、pipeline、negotiation、deal、commercial、business development、销售、营收、销售目标、成交、大客户谈判等证据，禁止在一票否决中写“没有Sales经历/无销售经验”。
+- 如果这些证据是否属于“直接Sales/Quota承担”不确定，应写“待核实”或“部分满足”，不得写“命中一票否决”。
+- 输出 JSON 前必须自检：vetoCheck、riskPoints、missingPoints、evidenceQuotes 之间不能互相矛盾。
+- 如果发现“风险/否决判断”和“关键原文依据”存在冲突，必须放入 verificationItems，而不是直接否决。
 
 【置信度校准规则】
 - confidence 表示“本次分析是否有充分简历证据支撑”，不是候选人匹配分。
@@ -624,6 +842,7 @@ ${resumeText}
   "verificationItems": ["需要人工核实的问题1"],
   "interviewQuestions": ["建议面试追问1"],
   "evidenceQuotes": ["最关键的简历原文依据1"],
+  "logicAudit": {"vetoHitCount": 0, "vetoUnclearCount": 0, "riskPointCount": 0, "warning": "如有前后矛盾请说明"},
   "scoreBreakdown": {
     "sales": 0,
     "industry": 0,
@@ -1196,5 +1415,5 @@ ipcMain.handle('ai:analyze', async (event, payload) => {
     tokenUsageNote: extractionUsage.totalTokens > 0
       ? '总令牌已合并：候选人资料AI预提取 + 岗位匹配深度评分。'
       : '总令牌为岗位匹配深度评分消耗。'
-  }, passLine);
+  }, passLine, resumeText);
 });

@@ -48,12 +48,14 @@ function renderPriorityHighlights(data) {
   else if (rec.includes('不建议') || vetoHitCount > 0 || score < 65) setPriorityCardState('decisionCard', 'priority-bad');
   else setPriorityCardState('decisionCard', 'priority-mid');
 
-  const riskTotal = vetoHitCount + vetoUnclearCount + riskPoints.length;
+  const riskTotal = vetoHitCount;
   $('priorityRisk').textContent = `${riskTotal}项`;
   $('priorityRiskText').textContent = vetoHitCount > 0
     ? `命中一票否决：${summarizeShort(firstText(veto.filter(x => String(x.status || '').includes('命中')).map(x => x.item)))}`
-    : summarizeShort(firstText(riskPoints, vetoUnclearCount ? '存在一票否决待核实项' : '暂无强风险'));
-  setPriorityCardState('riskCard', riskTotal ? (vetoHitCount ? 'priority-bad' : 'priority-mid') : 'priority-good');
+    : (vetoUnclearCount > 0
+      ? `一票否决待核实 ${vetoUnclearCount} 项；普通风险 ${riskPoints.length} 项`
+      : (riskPoints.length ? `普通风险 ${riskPoints.length} 项，未命中一票否决` : '未命中一票否决'));
+  setPriorityCardState('riskCard', vetoHitCount ? 'priority-bad' : (vetoUnclearCount || riskPoints.length ? 'priority-mid' : 'priority-good'));
 
   const missingTotal = missingPoints.length + mustWeakCount;
   $('priorityMissing').textContent = `${missingTotal}项`;

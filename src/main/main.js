@@ -497,7 +497,7 @@ function reconcileContradictoryVeto(result, contextText = '') {
 
   const fixedVeto = vetoCheck.map(item => {
     const status = String(item?.status || '');
-    if (status.includes('命中') && claimsNoSalesExperience(item)) {
+    if (isExplicitVetoHitStatus(status) && claimsNoSalesExperience(item)) {
       const originalReason = String(item.reason || '');
       warnings.push('系统发现简历中存在 sales/selling/revenue/negotiation 等销售相关证据，但模型同时判定“没有Sales经历”并命中一票否决。已自动降级为待核实，请人工确认是否为岗位要求的直接销售责任。');
       return {
@@ -553,8 +553,21 @@ function normalizeCandidateProfile(profile) {
 
 
 
+function isExplicitVetoHitStatus(status) {
+  const s = String(status || '').replace(/\s+/g, '').trim();
+  if (!s) return false;
+  // 关键修复：不能用 includes('命中')，因为“未命中”也包含“命中”两个字。
+  if (s.includes('未命中') || s.includes('不命中') || s.includes('没有命中') || s.includes('未发现命中')) return false;
+  return s === '命中' || s.startsWith('命中') || s.includes('已命中') || s.includes('明确命中');
+}
+
+function isExplicitVetoNotHitStatus(status) {
+  const s = String(status || '').replace(/\s+/g, '').trim();
+  return s.includes('未命中') || s.includes('不命中') || s.includes('没有命中') || s.includes('未发现命中');
+}
+
 function isVetoHit(item) {
-  return String(item?.status || '').includes('命中');
+  return isExplicitVetoHitStatus(item?.status);
 }
 
 function isVetoUnclear(item) {
@@ -568,16 +581,40 @@ function chooseRecommendationByScore(score, passLine) {
   return '不建议推进';
 }
 
+function containsAffirmativeVetoHitLanguage(text) {
+  const s = String(text || '');
+  if (!s) return false;
+
+  // 这些是明确的“未命中/0项”表达，不应被误判为命中一票否决。
+  const negativePatterns = [
+    /未命中一票否决/,
+    /没有命中一票否决/,
+    /未发现一票否决/,
+    /一票否决命中\s*[：:]\s*0\s*项/,
+    /一票否决\s*[：:]\s*0\s*项/
+  ];
+  if (negativePatterns.some(p => p.test(s))) return false;
+
+  return /命中一票否决|因一票否决|直接否决|一票否决\s*[：:]\s*[1-9]\d*\s*项|一票否决\s*[1-9]\d*\s*项/i.test(s);
+}
+
 function containsVetoLanguage(text) {
-  return /一票否决|否决|没有\s*Sales|无\s*Sales|没有销售|无销售|缺少销售|不具备销售/i.test(String(text || ''));
+  const s = String(text || '');
+  return containsAffirmativeVetoHitLanguage(s)
+    || /没有\s*Sales|无\s*Sales|没有销售|无销售|缺少销售|不具备销售/i.test(s);
 }
 
 function softenContradictoryText(text, vetoHitCount, vetoUnclearCount) {
   let s = String(text || '');
   if (!s || vetoHitCount > 0) return s;
 
+  // 如果原文已经是在说“未命中/0项”，不要误替换。
+  if (!containsAffirmativeVetoHitLanguage(s) && !/没有\s*Sales|无\s*Sales|没有销售|无销售|缺少销售|不具备销售/i.test(s)) {
+    return s;
+  }
+
   s = s
-    .replace(/命中一票否决/g, '存在一票否决待核实风险')
+    .replace(/(?<!未)命中一票否决/g, '存在一票否决待核实风险')
     .replace(/一票否决\s*[：:]\s*[1-9]\d*\s*项/g, `一票否决命中：0项，待核实：${vetoUnclearCount}项`)
     .replace(/一票否决\s*[1-9]\d*\s*项/g, `一票否决命中0项，待核实${vetoUnclearCount}项`)
     .replace(/因一票否决/g, '因关键风险待核实')
@@ -596,11 +633,11 @@ function finalizeResultConsistency(result, passLine) {
   let level = String(result.level || '');
   let summary = String(result.summary || '');
 
-  const recMentionsVeto = containsVetoLanguage(recommendation);
-  const summaryMentionsVeto = containsVetoLanguage(summary);
+  const recMentionsVeto = containsAffirmativeVetoHitLanguage(recommendation);
+  const summaryMentionsVeto = containsAffirmativeVetoHitLanguage(summary);
 
   if (vetoHitCount === 0) {
-    if (recMentionsVeto && Number(result.score || 0) >= 65) {
+    if (recMentionsVeto) {
       recommendation = chooseRecommendationByScore(Number(result.score || 0), passLine);
       warnings.push('系统发现推荐结论提到一票否决，但 vetoCheck 明细没有任何“命中”项，已按分数规则重新校准推进建议。');
     }
@@ -622,10 +659,10 @@ function finalizeResultConsistency(result, passLine) {
   const logicAudit = {
     vetoHitCount,
     vetoUnclearCount,
-    vetoNotHitCount: vetoCheck.filter(x => String(x?.status || '').includes('未命中')).length,
+    vetoNotHitCount: vetoCheck.filter(x => isExplicitVetoNotHitStatus(x?.status)).length,
     riskPointCount: riskPoints.length,
     missingPointCount: missingPoints.length,
-    rule: '一票否决命中数量只来自 vetoCheck.status 包含“命中”的项目；riskPoints 普通风险不计入一票否决命中数量。',
+    rule: '一票否决命中数量只来自 vetoCheck.status 明确等于或明确表示“命中”的项目；“未命中”不能被当作命中；riskPoints 普通风险不计入一票否决命中数量。',
     warning: vetoHitCount === 0 && (recMentionsVeto || summaryMentionsVeto)
       ? '已发现并修正“一票否决结论”和 vetoCheck 明细不一致的问题。'
       : ''
@@ -940,8 +977,7 @@ ipcMain.handle('standard:save', (event, standard) => {
   return { ok: true };
 });
 ipcMain.handle('standard:clear', () => {
-  const file = dataPath('standard.json');
-  if (fs.existsSync(file)) fs.unlinkSync(file);
+  removeJson('standard.json');
   return { ok: true };
 });
 
@@ -967,7 +1003,7 @@ ipcMain.handle('resume:select-and-parse', async () => {
 
 ipcMain.handle('profile:select-and-extract', async (event, payload = {}) => {
   const settings = readJson('settings.json', {});
-  const apiKey = String(payload.apiKey || settings.apiKey || '').trim();
+  const apiKey = String(payload.apiKey || getStoredApiKey(settings) || '').trim();
   if (!apiKey) throw new Error('请先输入并保存接口密钥，再进行个人主页PDF/图片双通道预提取。');
 
   const modelKey = String(payload.modelKey || settings.modelKey || 'deepseek-reasoner:');
@@ -1335,7 +1371,7 @@ ipcMain.handle('backup:import', async () => {
     ok: true,
     filePath,
     apiKeyImported: Boolean(importedSettings.apiKey),
-    apiKeyPreserved: Boolean(!importedSettings.apiKey && currentSettings.apiKey),
+    apiKeyPreserved: Boolean(!importedApiKey && currentApiKey),
     hasStandard: Boolean(backup.standard),
     leaderboardCount: Array.isArray(backup.leaderboard) ? backup.leaderboard.length : 0,
     projectCount: Array.isArray(backup.projects) ? backup.projects.length : 0,
@@ -1346,7 +1382,7 @@ ipcMain.handle('backup:import', async () => {
 
 ipcMain.handle('ai:analyze', async (event, payload) => {
   const settings = readJson('settings.json', {});
-  const apiKey = String(payload.apiKey || settings.apiKey || '').trim();
+  const apiKey = String(payload.apiKey || getStoredApiKey(settings) || '').trim();
   if (!apiKey) throw new Error('请先输入并保存深度求索接口密钥。');
 
   const resumeText = cleanText(payload.resumeText);
@@ -1357,7 +1393,7 @@ ipcMain.handle('ai:analyze', async (event, payload) => {
   settings.strictnessLevel = strictnessConfig.level;
   const prompt = buildPrompt({ ...payload, resumeText, passLine, strictnessLevel: strictnessConfig.level });
 
-  const modelKey = String(payload.modelKey || settings.modelKey || 'deepseek-v4-flash:enabled');
+  const modelKey = String(payload.modelKey || settings.modelKey || 'deepseek-reasoner:');
   const modelConfig = getModelConfig(modelKey);
   settings.modelKey = modelKey;
   writeJson('settings.json', settings);

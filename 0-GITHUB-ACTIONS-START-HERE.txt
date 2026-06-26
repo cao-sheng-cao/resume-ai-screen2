@@ -256,3 +256,24 @@ v1.0.35：
 - 修复前文显示命中一票否决、后文明细未命中的矛盾
 - riskPoints普通风险不再计入一票否决命中数量
 - 新增logicAudit字段
+
+
+v1.0.36：
+- 修复“未命中”被误算为“命中”的一票否决计数 bug
+- 新增 isExplicitVetoHitStatus / isExplicitVetoNotHitStatus
+- selfcheck 新增未命中不误算为命中检查
+
+
+v1.0.37：
+- 整体代码逻辑自查版
+- 修复AI评分/预提取读取加密密钥问题
+- 统一模型兜底为 deepseek-reasoner
+- 新增 scripts/logic-tests.js
+- npm run check 增加语义逻辑测试
+
+
+v1.0.38：
+- 最终整体逻辑自查版
+- GitHub Actions打包前执行npm run check
+- standard清除逻辑走storage模块
+- 同候选人识别键增强

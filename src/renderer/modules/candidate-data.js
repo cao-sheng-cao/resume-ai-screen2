@@ -43,19 +43,69 @@ function normalizeCandidateNameValue(value) {
     .toLowerCase();
 }
 
+function normalizeIdentityPart(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function extractIdentityHintsFromText(text) {
+  const s = String(text || '');
+  const emailMatch = s.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const linkedinMatch = s.match(/linkedin\.com\/in\/[A-Za-z0-9._%-]+/i);
+  return {
+    email: emailMatch ? emailMatch[0].toLowerCase() : '',
+    linkedin: linkedinMatch ? linkedinMatch[0].toLowerCase() : ''
+  };
+}
+
 function candidateIdentityFromData(data) {
   const profile = data?.candidateProfile || {};
   const name = data?.candidateName || profile.nameFromResume || profile.name || '';
   const normalized = normalizeCandidateNameValue(name);
   if (!normalized || normalized.includes('待识别') || normalized.includes('未知')) return '';
-  return normalized;
+
+  const hintText = [
+    data?.resumeText,
+    data?.summary,
+    ...(Array.isArray(data?.evidenceQuotes) ? data.evidenceQuotes : []),
+    profile.currentCompany,
+    profile.email,
+    profile.linkedin
+  ].join('\n');
+  const hints = extractIdentityHintsFromText(hintText);
+  const company = normalizeIdentityPart(profile.currentCompany || '');
+
+  if (hints.email) return `email:${hints.email}`;
+  if (hints.linkedin) return `linkedin:${hints.linkedin}`;
+  if (company) return `name_company:${normalized}::${company}`;
+  return `name_only:${normalized}`;
 }
 
 function candidateIdentityFromItem(item) {
-  const name = item?.candidateName || item?.analysisSnapshot?.candidateName || '';
+  const snapshot = item?.analysisSnapshot || {};
+  const profile = snapshot?.candidateProfile || {};
+  const name = item?.candidateName || snapshot?.candidateName || '';
   const normalized = normalizeCandidateNameValue(name);
   if (!normalized || normalized.includes('待识别') || normalized.includes('未知')) return '';
-  return normalized;
+
+  const hintText = [
+    item?.summary,
+    snapshot?.summary,
+    ...(Array.isArray(snapshot?.evidenceQuotes) ? snapshot.evidenceQuotes : []),
+    item?.jobTitle,
+    profile.currentCompany,
+    profile.email,
+    profile.linkedin
+  ].join('\n');
+  const hints = extractIdentityHintsFromText(hintText);
+  const company = normalizeIdentityPart(profile.currentCompany || '');
+
+  if (hints.email) return `email:${hints.email}`;
+  if (hints.linkedin) return `linkedin:${hints.linkedin}`;
+  if (company) return `name_company:${normalized}::${company}`;
+  return `name_only:${normalized}`;
 }
 
 function findSameCandidateItems(data, excludeId = '') {

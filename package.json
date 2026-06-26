@@ -1,7 +1,7 @@
 {
   "name": "resume-ai-screener-electron",
-  "version": "1.0.35",
-  "description": "本地简历岗位匹配评分系统：全局评分逻辑一致性审计版，统一一票否决、推进建议、风险数量和明细展示口径。",
+  "version": "1.0.38",
+  "description": "本地简历岗位匹配评分系统：最终自查修复版，GitHub Actions打包前执行自检，收拢storage删除逻辑，优化同候选人识别键。",
   "main": "main.js",
   "author": "Resume AI Screener",
   "license": "MIT",
@@ -53,5 +53,7 @@
       "uninstallerIcon": "src/assets/app-icon.ico"
     },
     "asar": false
-  }
+  },
+  "logic-test": "node scripts/logic-tests.js",
+  "check": "node --check main.js && node --check src/main/main.js && node --check src/main/preload.js && node --check src/renderer/renderer.js && node scripts/selfcheck.js && node scripts/logic-tests.js"
 }

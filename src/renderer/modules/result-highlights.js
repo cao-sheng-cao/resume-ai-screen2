@@ -1,4 +1,16 @@
 // result-highlights.js - extracted from renderer.js in v1.0.30 modular refactor.
+function isExplicitVetoHitStatus(status) {
+  const s = String(status || '').replace(/\s+/g, '').trim();
+  if (!s) return false;
+  if (s.includes('未命中') || s.includes('不命中') || s.includes('没有命中') || s.includes('未发现命中')) return false;
+  return s === '命中' || s.startsWith('命中') || s.includes('已命中') || s.includes('明确命中');
+}
+
+function isExplicitVetoNotHitStatus(status) {
+  const s = String(status || '').replace(/\s+/g, '').trim();
+  return s.includes('未命中') || s.includes('不命中') || s.includes('没有命中') || s.includes('未发现命中');
+}
+
 function firstText(items, fallback = '暂无') {
   const arr = Array.isArray(items) ? items.filter(Boolean) : [];
   return arr.length ? String(arr[0]) : fallback;
@@ -35,7 +47,7 @@ function renderPriorityHighlights(data) {
   const missingPoints = Array.isArray(data.missingPoints) ? data.missingPoints : [];
   const verifyItems = Array.isArray(data.verificationItems) ? data.verificationItems : [];
 
-  const vetoHitCount = countStatus(veto, x => String(x.status || '').includes('命中'));
+  const vetoHitCount = countStatus(veto, x => isExplicitVetoHitStatus(x.status));
   const vetoUnclearCount = countStatus(veto, x => String(x.status || '').includes('待核实'));
   const mustWeakCount = countStatus(must, x => {
     const s = String(x.status || '');
@@ -51,7 +63,7 @@ function renderPriorityHighlights(data) {
   const riskTotal = vetoHitCount;
   $('priorityRisk').textContent = `${riskTotal}项`;
   $('priorityRiskText').textContent = vetoHitCount > 0
-    ? `命中一票否决：${summarizeShort(firstText(veto.filter(x => String(x.status || '').includes('命中')).map(x => x.item)))}`
+    ? `命中一票否决：${summarizeShort(firstText(veto.filter(x => isExplicitVetoHitStatus(x.status)).map(x => x.item)))}`
     : (vetoUnclearCount > 0
       ? `一票否决待核实 ${vetoUnclearCount} 项；普通风险 ${riskPoints.length} 项`
       : (riskPoints.length ? `普通风险 ${riskPoints.length} 项，未命中一票否决` : '未命中一票否决'));

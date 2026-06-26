@@ -22,7 +22,8 @@ const files = {
   storageService: 'src/main/services/storage.js',
   aiClientService: 'src/main/services/ai-client.js',
   secureSettingsService: 'src/main/services/secure-settings.js',
-  workflow: '.github/workflows/build-windows.yml'
+  workflow: '.github/workflows/build-windows.yml',
+  logicTests: 'scripts/logic-tests.js'
 };
 
 const results = [];
@@ -34,7 +35,7 @@ for (const file of Object.values(files)) {
   check(`文件存在：${file}`, exists(file));
 }
 
-for (const file of [files.mainEntry, files.main, files.preload, files.renderer, files.layoutModule, files.resultHighlightsModule, files.candidateDataModule, files.candidateActionsModule, files.candidateCardsModule, files.storageService, files.aiClientService, files.secureSettingsService]) {
+for (const file of [files.mainEntry, files.main, files.preload, files.renderer, files.layoutModule, files.resultHighlightsModule, files.candidateDataModule, files.candidateActionsModule, files.candidateCardsModule, files.storageService, files.aiClientService, files.secureSettingsService, files.logicTests]) {
   try {
     execFileSync(process.execPath, ['--check', path.join(root, file)], { stdio: 'pipe' });
     check(`JS语法：${file}`, true);
@@ -91,10 +92,12 @@ check('原子写入', storageService.includes('.tmp-') && storageService.include
 check('safeStorage密钥存储', main.includes("./services/secure-settings") && secureSettingsService.includes('function setStoredApiKey') && secureSettingsService.includes('function getStoredApiKey') && secureSettingsService.includes('apiKeyEncrypted'));
 check('密钥函数已导入', main.includes('setStoredApiKey') && main.includes('getStoredApiKey') && main.includes('removeStoredApiKey') && main.includes("require('./services/secure-settings')"));
 check('候选人卡片与排行榜数据分离', renderer.includes('let candidates') && candidateDataModule.includes('migrateCandidates') && renderer.includes('p.candidates'));
+check('候选人识别键增强', candidateDataModule.includes('extractIdentityHintsFromText') && candidateDataModule.includes('name_company') && candidateDataModule.includes('linkedin'));
 check('双通道OCR预提取', main.includes('async function ocrImageFile') && main.includes('ocrBlocks') && !main.includes('image_url'));
 check('严格度隔离排行榜', renderer.includes('String(x.strictnessLevel || 3) !== strictness'));
 check('ChatGPT式候选人卡片', html.includes('candidateCards') && candidateCardsModule.includes('renderCandidateCards') && css.includes('analysis-card'));
 check('GitHub Actions工作流', workflow.includes('Build Windows Installer') && workflow.includes('electron-builder'));
+check('Actions执行npm run check', workflow.includes('npm run check'));
 check('归类颜色标签', candidateDataModule.includes('categoryClass') && candidateCardsModule.includes('categoryBadgeHtml') && css.includes('category-priority') && css.includes('category-reject'));
 check('评分历史对比', candidateDataModule.includes('buildScoreStability') && renderer.includes('scoreHistory') && candidateCardsModule.includes('scoreDeltaWarning'));
 check('评分差异提醒', resultHighlightsModule.includes('renderScoreTrust') && resultHighlightsModule.includes('maxDelta') && html.includes('scoreDeltaText'));
@@ -102,10 +105,15 @@ check('证据覆盖率', resultHighlightsModule.includes('calculateEvidenceCover
 check('一票否决一致性校验', main.includes('reconcileContradictoryVeto') && main.includes('hasSalesLikeEvidence') && main.includes('claimsNoSalesExperience'));
 check('一票否决显示口径修正', html.includes('一票否决命中') && resultHighlightsModule.includes('普通风险') && resultHighlightsModule.includes('未命中一票否决'));
 check('全局评分逻辑一致性', main.includes('finalizeResultConsistency') && main.includes('logicAudit') && main.includes('riskPoints 普通风险不计入一票否决命中数量'));
+check('未命中不误算为命中', main.includes('isExplicitVetoHitStatus') && resultHighlightsModule.includes('isExplicitVetoHitStatus') && !main.includes("status.includes('命中')") && !resultHighlightsModule.includes("String(x.status || '').includes('命中')"));
+check('加密密钥读取用于AI请求', main.includes('payload.apiKey || getStoredApiKey(settings)'));
+check('统一模型兜底', main.includes("settings.modelKey || 'deepseek-reasoner:'") && !main.includes("settings.modelKey || 'deepseek-v4-flash:enabled'"));
+check('逻辑语义测试脚本', fs.existsSync(path.join(root, 'scripts/logic-tests.js')));
 check('结论明细冲突修正', main.includes('softenContradictoryText') && main.includes('已按分数规则重新校准推进建议'));
 check('渲染模块拆分', html.includes('modules/layout-controls.js') && candidateCardsModule.includes('renderCandidateCards') && resultHighlightsModule.includes('renderPriorityHighlights'));
+check('standard清除走storage模块', main.includes("removeJson('standard.json')") && !main.includes("fs.unlinkSync(file)"));
 check('主进程服务拆分', main.includes("./services/storage") && main.includes("./services/ai-client") && storageService.includes('module.exports') && aiClientService.includes('module.exports'));
-check('版本号', pkg.version === '1.0.35' && html.includes('v1.0.35'));
+check('版本号', pkg.version === '1.0.38' && html.includes('v1.0.38'));
 
 for (const r of results) {
   console.log(`${r.ok ? '通过' : '失败'} - ${r.name}${r.detail ? `：${r.detail}` : ''}`);

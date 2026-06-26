@@ -556,3 +556,39 @@ Token 数据来自 DeepSeek API 返回的 `usage` 字段。
 - 新增 `logicAudit` 字段，记录一票否决命中、待核实、未命中和普通风险数量。
 - 更新 Prompt 和 `scripts/selfcheck.js`，加入全局评分逻辑一致性检查。
 - 新增 `自检报告-v1.0.35-全局评分逻辑一致性审计.txt`。
+
+
+## v1.0.36 未命中误算命中热修复
+
+本版本修复一个关键逻辑 bug：
+
+- 旧逻辑用 `includes('命中')` 判断一票否决命中。
+- 这会导致 `未命中` 也被误算为 `命中`。
+- 新增 `isExplicitVetoHitStatus`，只有明确命中才算命中。
+- 新增 `isExplicitVetoNotHitStatus`，明确识别未命中。
+- 主进程和结果页卡片都改为精确判断。
+- `scripts/selfcheck.js` 新增“未命中不误算为命中”检查。
+- 新增 `自检报告-v1.0.36-未命中误算命中热修复.txt`。
+
+
+## v1.0.37 整体代码逻辑自查版
+
+本版本不是新增业务功能，而是继续做整体逻辑自查并修复问题：
+
+- 修复 AI评分和双通道预提取未读取 safeStorage 加密密钥的问题。
+- 修复 ai:analyze 仍使用旧模型兜底 deepseek-v4-flash:enabled 的问题。
+- 修复备份导入后密钥保留提示仍按旧明文 apiKey 判断的问题。
+- 新增 `scripts/logic-tests.js`，补充语义级逻辑测试。
+- `npm run check` 现在会同时运行 selfcheck 和 logic-tests。
+- 新增 `自检报告-v1.0.37-整体代码逻辑自查.txt`。
+
+
+## v1.0.38 最终整体逻辑自查版
+
+本版本继续做最终自查并修复：
+
+- GitHub Actions 打包前新增 `npm run check`。
+- `standard:clear` 改为走 `removeJson('standard.json')`。
+- 同候选人历史评分识别键增强：优先邮箱、LinkedIn；其次姓名+公司；最后才仅姓名。
+- 继续保留 safeStorage 密钥读取、模型兜底统一、一票否决精确判断、Sales证据冲突降级、证据覆盖率和历史评分差异提醒。
+- 新增 `自检报告-v1.0.38-最终整体逻辑自查.txt`。

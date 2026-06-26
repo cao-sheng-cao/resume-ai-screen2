@@ -1,0 +1,59 @@
+简历岗位匹配评分系统 v1.0.38 最终整体逻辑自查报告
+
+一、本次最终自查结论
+本次再次对整体代码逻辑进行最终自查，继续发现 3 个可改进问题，并已修复。
+修复后：JS语法检查、selfcheck、logic-tests、GitHub Actions自检接入均通过。
+
+二、本次查出的最后问题
+
+问题1【中】：GitHub Actions 打包前没有执行 npm run check
+影响：本地自检通过不等于 Actions 打包时会自动拦截问题。
+修复：在 .github/workflows/build-windows.yml 中 npm install 后加入 npm run check。
+
+问题2【低】：standard:clear 仍直接使用 fs.unlinkSync 删除文件，没有走 storage 模块
+影响：不影响功能，但模块化职责不够统一。
+修复：改为 removeJson('standard.json')。
+
+问题3【低】：同候选人历史评分只按姓名匹配，重名候选人可能误合并
+影响：候选人数量变多时，同名候选人可能被错误视为同一人，导致历史评分对比误报。
+修复：增强候选人识别键，优先使用邮箱、LinkedIn；其次使用姓名+当前公司；最后才回退到仅姓名。
+
+三、此前高风险逻辑继续保留并通过检查
+1. AI评分和双通道预提取读取 safeStorage 加密密钥。
+2. 模型兜底统一为 deepseek-reasoner。
+3. 一票否决命中精确判断，未命中不会误算命中。
+4. 普通风险不再计入一票否决命中数量。
+5. Sales证据冲突会降级为待核实。
+6. 证据覆盖率和历史评分差异提醒继续保留。
+7. 候选人数据与排行榜数据分离继续保留。
+
+四、自检结果
+- JS语法：main.js：通过；
+- JS语法：src/main/main.js：通过；
+- JS语法：src/main/preload.js：通过；
+- JS语法：src/main/services/storage.js：通过；
+- JS语法：src/main/services/ai-client.js：通过；
+- JS语法：src/main/services/secure-settings.js：通过；
+- JS语法：src/renderer/renderer.js：通过；
+- JS语法：src/renderer/modules/layout-controls.js：通过；
+- JS语法：src/renderer/modules/result-highlights.js：通过；
+- JS语法：src/renderer/modules/candidate-data.js：通过；
+- JS语法：src/renderer/modules/candidate-actions.js：通过；
+- JS语法：src/renderer/modules/candidate-cards.js：通过；
+- JS语法：scripts/selfcheck.js：通过；
+- JS语法：scripts/logic-tests.js：通过；
+- Actions打包前执行check：通过；已在GitHub Actions中加入 npm run check
+- standard清除逻辑收拢：通过；standard:clear 使用storage模块
+- 候选人识别键增强：通过；姓名+邮箱/LinkedIn/公司辅助匹配
+- AI读取加密密钥：通过；通过
+- 模型兜底统一：通过；通过
+- 一票否决语义测试：通过；logic-tests通过
+- selfcheck：通过；selfcheck通过
+- 版本号：通过；1.0.38
+
+五、建议人工最终测试
+1. GitHub Actions 上传后确认 npm run check 会在打包前执行。
+2. 保存密钥后重启软件，不点击读取密钥，直接评分。
+3. 用一票否决全部未命中的候选人测试，确认显示命中0项。
+4. 用同名不同公司的候选人测试，确认历史评分不会轻易误合并。
+5. 用含 sales/selling/revenue 的候选人测试，确认不会误判没有Sales经历。

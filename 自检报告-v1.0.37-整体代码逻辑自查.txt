@@ -1,0 +1,72 @@
+简历岗位匹配评分系统 v1.0.37 整体代码逻辑自查报告
+
+一、本次自查结论
+本次对整体代码逻辑进行了进一步自查，发现并修复了 4 个真实问题，其中 2 个为高优先级问题。
+修复后静态自检、语法检查、selfcheck 和逻辑语义测试全部通过。
+
+二、本次查出的真实问题
+
+问题1【高】：AI评分和双通道预提取没有读取 safeStorage 加密密钥
+证据：ai:analyze / profile:select-and-extract 仍使用 payload.apiKey || settings.apiKey。safeStorage 改造后，settings.apiKey 通常不存在，密钥存在 apiKeyEncrypted 中。
+影响：保存密钥后，某些场景下仍可能提示没有密钥，或者过度依赖前端输入框中的明文密钥。
+修复：改为 payload.apiKey || getStoredApiKey(settings)。
+
+问题2【高】：评分接口模型兜底仍是旧模型 deepseek-v4-flash:enabled
+证据：ai:analyze 中仍有 settings.modelKey || 'deepseek-v4-flash:enabled'。
+影响：界面显示默认 reasoner，但实际兜底可能请求旧模型，造成模型显示与真实调用不一致。
+修复：统一改为 deepseek-reasoner:。
+
+问题3【中】：备份导入后的密钥保留提示仍按旧明文 apiKey 判断
+证据：apiKeyPreserved 使用 currentSettings.apiKey 判断。safeStorage 后密钥通常为 apiKeyEncrypted。
+影响：导入备份后提示信息可能不准确。
+修复：改为基于 currentApiKey / importedApiKey 判断。
+
+问题4【中】：selfcheck 偏静态检查，缺少语义单元测试
+证据：此前 selfcheck 主要检查字符串和函数是否存在，不能直接证明“未命中不会误算为命中”。
+影响：类似 includes('命中') 这类语义 bug 容易漏掉。
+修复：新增 scripts/logic-tests.js，直接测试一票否决命中/未命中、推荐分档、一票否决语言识别等规则。
+
+三、继续重点复查的评分逻辑
+1. 一票否决命中：只统计明确命中，不把未命中/待核实/普通风险算入命中。
+2. 普通风险 riskPoints：只作为风险说明，不等同于一票否决。
+3. 推进建议：若没有一票否决命中，但 recommendation 提到一票否决，会按分数规则重新校准。
+4. Sales证据冲突：如果简历里有 sales/selling/revenue/negotiation 证据，不允许直接判定“没有Sales经历”并命中一票否决，只能待核实。
+5. 证据覆盖率：继续显示关键判断中有原文依据的比例。
+6. 历史评分：继续检查同候选人多次评分分差。
+
+四、本次自检结果
+- JS语法：main.js：通过；
+- JS语法：src/main/main.js：通过；
+- JS语法：src/main/preload.js：通过；
+- JS语法：src/main/services/storage.js：通过；
+- JS语法：src/main/services/ai-client.js：通过；
+- JS语法：src/main/services/secure-settings.js：通过；
+- JS语法：src/renderer/renderer.js：通过；
+- JS语法：src/renderer/modules/layout-controls.js：通过；
+- JS语法：src/renderer/modules/result-highlights.js：通过；
+- JS语法：src/renderer/modules/candidate-data.js：通过；
+- JS语法：src/renderer/modules/candidate-actions.js：通过；
+- JS语法：src/renderer/modules/candidate-cards.js：通过；
+- JS语法：scripts/selfcheck.js：通过；
+- JS语法：scripts/logic-tests.js：通过；
+- AI评分读取加密密钥：通过；ai:analyze / profile 现在读取 safeStorage 解密密钥
+- 旧明文apiKey读取风险修复：通过；已清除直接读取 settings.apiKey 的旧写法
+- 模型兜底统一：通过；统一为 deepseek-reasoner:
+- 备份导入密钥提示修复：通过；不再按 currentSettings.apiKey 判断
+- 一票否决精确命中：通过；主进程和前端一致
+- 未命中不会误算命中：通过；危险写法已清除
+- 推荐结论全分段校准：通过；不再只处理65分以上
+- 摘要一票否决口径修正：通过；存在
+- Sales证据冲突降级：通过；存在
+- 评分可信度：通过；历史评分/分差/证据覆盖保留
+- 候选人数据分离：通过；candidates 和 leaderboard 分离保留
+- 逻辑语义测试运行：通过；scripts/logic-tests.js 通过
+- selfcheck运行：通过；scripts/selfcheck.js 通过
+- 版本号：通过；1.0.37
+
+五、仍建议人工实测
+1. 保存 API Key 后，关闭软件重启，不点击“读取密钥”，直接评分测试。
+2. 使用图片/PDF双通道预提取，确认也能读取已保存密钥。
+3. 使用一票否决全部未命中的候选人，确认顶部显示命中0项。
+4. 使用含 sales/selling/revenue 的候选人，确认不会误判“没有Sales经历”。
+5. 重复评分同一候选人，确认历史评分分差提醒正常。

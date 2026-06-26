@@ -1,0 +1,82 @@
+简历岗位匹配评分系统 v1.0.36 未命中误算命中热修复自检报告
+
+一、本次继续自查发现的问题
+本次进一步检查后，发现 v1.0.35 仍存在一个非常关键的逻辑 bug：旧版用 includes('命中') 来统计一票否决命中项。
+这会导致 status='未命中' 也被误算为命中，因为“未命中”这个字符串本身包含“命中”两个字。
+
+二、这个问题会造成什么后果
+1. 后文明细显示 4 项未命中，但顶部/摘要却可能显示命中一票否决。
+2. vetoHitCount 被错误放大。
+3. 推进建议可能被错误降级。
+4. result-highlights 顶部卡片可能把未命中显示为命中。
+5. 全局一致性后处理也可能在计算基础上被污染。
+
+三、本次修复
+1. 新增 isExplicitVetoHitStatus。
+2. 新增 isExplicitVetoNotHitStatus。
+3. 明确排除“未命中 / 不命中 / 没有命中 / 未发现命中”。
+4. 只有 status 等于“命中”、以“命中”开头、或明确包含“已命中/明确命中”时才算真正命中。
+5. 主进程 normalize / finalize / reconcile 逻辑改用精确判断。
+6. 前端 result-highlights 顶部卡片也改用精确判断。
+7. scripts/selfcheck.js 新增“未命中不误算为命中”检查。
+
+四、自检结果
+- JS语法：main.js：通过；
+- JS语法：src/main/main.js：通过；
+- JS语法：src/main/preload.js：通过；
+- JS语法：src/main/services/storage.js：通过；
+- JS语法：src/main/services/ai-client.js：通过；
+- JS语法：src/main/services/secure-settings.js：通过；
+- JS语法：src/renderer/renderer.js：通过；
+- JS语法：src/renderer/modules/layout-controls.js：通过；
+- JS语法：src/renderer/modules/result-highlights.js：通过；
+- JS语法：src/renderer/modules/candidate-data.js：通过；
+- JS语法：src/renderer/modules/candidate-actions.js：通过；
+- JS语法：src/renderer/modules/candidate-cards.js：通过；
+- JS语法：scripts/selfcheck.js：通过；
+- 发现的核心问题：通过；旧逻辑用 includes('命中') 统计一票否决，导致“未命中”也被误算为“命中”。
+- 一票否决命中精确判断：通过；主进程和结果页均已使用精确判断函数
+- 未命中排除逻辑：通过；已显式排除未命中/不命中/没有命中
+- 旧错误统计写法清除：通过；已清除危险写法
+- 全局一致性保留：通过；保留全局后处理
+- 一票否决卡片口径：通过；普通风险不再混入一票否决命中数量
+- Prompt口径：通过；规则已写入
+- 版本号：通过；1.0.36
+- scripts/selfcheck.js运行：通过；e-cards.js
+通过 - JS语法：src/main/services/storage.js
+通过 - JS语法：src/main/services/ai-client.js
+通过 - JS语法：src/main/services/secure-settings.js
+通过 - 历史误替换残留
+通过 - HTML ID 与前端调用对应
+通过 - 按钮绑定
+通过 - IPC接口对应
+通过 - 原子写入
+通过 - safeStorage密钥存储
+通过 - 密钥函数已导入
+通过 - 候选人卡片与排行榜数据分离
+通过 - 双通道OCR预提取
+通过 - 严格度隔离排行榜
+通过 - ChatGPT式候选人卡片
+通过 - GitHub Actions工作流
+通过 - 归类颜色标签
+通过 - 评分历史对比
+通过 - 评分差异提醒
+通过 - 证据覆盖率
+通过 - 一票否决一致性校验
+通过 - 一票否决显示口径修正
+通过 - 全局评分逻辑一致性
+通过 - 未命中不误算为命中
+通过 - 结论明细冲突修正
+通过 - 渲染模块拆分
+通过 - 主进程服务拆分
+通过 - 版本号
+
+自检通过：全部检查项通过。
+
+
+五、建议人工测试
+1. 使用一个 vetoCheck 全部为“未命中”的候选人重新评分。
+2. 顶部应显示：一票否决命中 0 项。
+3. 摘要和推进建议不应再写“命中一票否决”。
+4. 普通风险仍可以显示，但不能被算成一票否决命中。
+5. 如果 status 为“待核实”，也不能被算成命中。
